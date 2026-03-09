@@ -9,23 +9,33 @@ local isfile = isfile or function(file)
 end
 local delfile = delfile or function(file) writefile(file, '') end
 
+local function dbg(msg) warn('[Vain]', msg) end
+
+dbg('loader started')
+
 -- Create folder structure
 for _, folder in {'vain', 'vain/profiles', 'vain/games', 'vain/guis', 'vain/libraries'} do
-	if not isfolder(folder) then makefolder(folder) end
+	if not isfolder(folder) then
+		makefolder(folder)
+		dbg('created folder: ' .. folder)
+	end
 end
 
 -- Resolve commit
 local commit
 if isfile('vain/profiles/commit.txt') then
 	commit = readfile('vain/profiles/commit.txt')
+	dbg('cached commit: ' .. commit)
 end
 if not commit or commit == '' then
+	dbg('fetching latest commit from GitHub...')
 	local _, subbed = pcall(function()
 		return game:HttpGet('https://github.com/VainV5/Vain')
 	end)
 	local pos = subbed and subbed:find('currentOid')
 	commit = pos and subbed:sub(pos + 13, pos + 52) or 'main'
 	commit = #commit == 40 and commit or 'main'
+	dbg('resolved commit: ' .. commit)
 end
 
 -- Download progress label
@@ -43,18 +53,24 @@ downloader.Parent = gethui and gethui() or cloneref(game:GetService('Players')).
 local function downloadFile(path, func)
 	local remotePath = path:gsub('vain/', '')
 	if not isfile(path) then
+		local url = 'https://raw.githubusercontent.com/VainV5/Vain/' .. readfile('vain/profiles/commit.txt') .. '/' .. remotePath
+		dbg('downloading: ' .. url)
 		downloader.Text = 'Downloading ' .. remotePath
 		local suc, res = pcall(function()
-			return game:HttpGet('https://raw.githubusercontent.com/VainV5/Vain/' .. readfile('vain/profiles/commit.txt') .. '/' .. remotePath, true)
+			return game:HttpGet(url, true)
 		end)
 		if not suc or res == '404: Not Found' then
+			dbg('FAILED: ' .. remotePath .. ' — ' .. tostring(res))
 			downloader.Text = 'Failed: ' .. remotePath
 			error(res)
 		end
+		dbg('downloaded: ' .. remotePath .. ' (' .. #res .. ' bytes)')
 		if path:find('.lua') then
 			res = '--[vain cache]\n' .. res
 		end
 		writefile(path, res)
+	else
+		dbg('cached: ' .. path)
 	end
 	downloader.Text = ''
 	return (func or readfile)(path)
@@ -64,6 +80,7 @@ local function wipeFolder(path)
 	if isfolder(path) then
 		for _, v in listfiles(path) do
 			if isfile(v) and not v:find('/profiles') then
+				dbg('wiping: ' .. v)
 				pcall(delfile, v)
 			end
 		end
@@ -72,12 +89,22 @@ end
 
 -- Wipe stale cache on update
 if not isfile('vain/profiles/commit.txt') or readfile('vain/profiles/commit.txt') ~= commit then
+	dbg('commit changed — wiping cache')
 	wipeFolder('vain')
 	wipeFolder('vain/games')
 	wipeFolder('vain/guis')
 	wipeFolder('vain/libraries')
+else
+	dbg('commit unchanged — using cache')
 end
 
 writefile('vain/profiles/commit.txt', commit)
 
-return loadstring(downloadFile('vain/main.lua'), 'main.lua')()
+dbg('loading main.lua...')
+local ok, err = pcall(function()
+	return loadstring(downloadFile('vain/main.lua'), 'main.lua')()
+end)
+if not ok then
+	dbg('main.lua ERROR: ' .. tostring(err))
+	error(err)
+end
