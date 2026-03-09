@@ -279,11 +279,22 @@ local function findByRole(role)
 	end
 end
 
+-- One-shot helper: defers a module toggle so it snaps back off after firing
+local function oneShot(module)
+	task.defer(function()
+		if module and module.Enabled then
+			module:Toggle()
+		end
+	end)
+end
+
 -- ── Combat — role teleports ───────────────────────────────────────────────────
 local Combat = vain.Categories.Combat
 
-local tpMurderer = Combat:CreateModule({
+local tpMurderer
+tpMurderer = Combat:CreateModule({
 	Name = 'Teleport to Murderer',
+	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
 		local target = findByRole('Murderer')
@@ -292,12 +303,14 @@ local tpMurderer = Combat:CreateModule({
 		else
 			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
 		end
-		tpMurderer:Toggle()
+		oneShot(tpMurderer)
 	end,
 })
 
-local tpSheriff = Combat:CreateModule({
+local tpSheriff
+tpSheriff = Combat:CreateModule({
 	Name = 'Teleport to Sheriff',
+	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
 		local target = findByRole('Sheriff')
@@ -306,68 +319,61 @@ local tpSheriff = Combat:CreateModule({
 		else
 			vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
 		end
-		tpSheriff:Toggle()
+		oneShot(tpSheriff)
 	end,
 })
 
-local tpPlayerTarget = 'None'
-local tpPlayer = Combat:CreateModule({
+local tpPlayerTarget = ''
+local tpPlayer
+tpPlayer = Combat:CreateModule({
 	Name = 'Teleport to Player',
+	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
-		local target = playersService:FindFirstChild(tpPlayerTarget)
+		local name   = tpPlayerTarget ~= '' and tpPlayerTarget or nil
+		local target = name and playersService:FindFirstChild(name)
 		if target then
 			tpToPlayer(target)
 		else
-			vain:CreateNotification('Vain', 'Player not found', 3, 'alert')
+			vain:CreateNotification('Vain', 'Player "' .. (name or '?') .. '" not found', 3, 'alert')
 		end
-		tpPlayer:Toggle()
+		oneShot(tpPlayer)
 	end,
 })
 
-local playerOptions = {'None'}
-for _, p in playersService:GetPlayers() do
-	if p ~= lplr then table.insert(playerOptions, p.Name) end
-end
-
-local tpPlayerDropdown = tpPlayer:CreateDropdown({
-	Name    = 'Target',
-	Options = playerOptions,
-	Default = 'None',
-	Function = function(val)
+tpPlayer:CreateTextBox({
+	Name        = 'Username',
+	Default     = '',
+	Placeholder = 'Enter player name...',
+	Function    = function(val)
 		tpPlayerTarget = val
 	end,
 })
 
--- Keep dropdown in sync as players join/leave
-playersService.PlayerAdded:Connect(function(p)
-	table.insert(playerOptions, p.Name)
-end)
-playersService.PlayerRemoving:Connect(function(p)
-	local i = table.find(playerOptions, p.Name)
-	if i then table.remove(playerOptions, i) end
-	if tpPlayerTarget == p.Name then tpPlayerTarget = 'None' end
-end)
-
 -- ── Utility — click teleport ──────────────────────────────────────────────────
-local Utility = vain.Categories.Utility
-
+local Utility      = vain.Categories.Utility
+local requireCtrl  = true
 local clickTPConn
-local clickTP = Utility:CreateModule({
+
+local clickTP
+clickTP = Utility:CreateModule({
 	Name = 'Click Teleport',
+	Bind = {},
 	Function = function(enabled)
 		if enabled then
 			clickTPConn = inputService.InputBegan:Connect(function(input, gpe)
 				if gpe then return end
 				if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-				if not inputService:IsKeyDown(Enum.KeyCode.LeftControl) then return end
-				local hrp = getHRP()
+				if requireCtrl and not inputService:IsKeyDown(Enum.KeyCode.LeftControl) then return end
+				local char = lplr.Character
+				if not char then return end
+				local hrp = char:FindFirstChild('HumanoidRootPart')
 				if not hrp then return end
-				local cam = workspace.CurrentCamera
-				local mouse = inputService:GetMouseLocation()
-				local ray = cam:ScreenPointToRay(mouse.X, mouse.Y)
+				local cam    = workspace.CurrentCamera
+				local mouse  = inputService:GetMouseLocation()
+				local ray    = cam:ScreenPointToRay(mouse.X, mouse.Y)
 				local params = RaycastParams.new()
-				params.FilterDescendantsInstances = {lplr.Character}
+				params.FilterDescendantsInstances = {char}
 				params.FilterType = Enum.RaycastFilterType.Exclude
 				local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
 				if result then
@@ -375,79 +381,94 @@ local clickTP = Utility:CreateModule({
 				end
 			end)
 		else
-			if clickTPConn then
-				clickTPConn:Disconnect()
-				clickTPConn = nil
-			end
+			if clickTPConn then clickTPConn:Disconnect(); clickTPConn = nil end
 		end
 	end,
 })
 
 clickTP:CreateToggle({
 	Name = 'Require Ctrl',
-	Function = function() end,
+	Function = function(enabled)
+		requireCtrl = enabled
+	end,
 })
 
 -- ── World — map & lobby teleport ──────────────────────────────────────────────
 local World = vain.Categories.World
 
-local tpMap = World:CreateModule({
+local tpMap
+tpMap = World:CreateModule({
 	Name = 'Teleport to Map',
+	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
-		-- MM2 loads the map as a Model in workspace during a round
-		-- Find the largest non-character model (the map)
+
+		-- MM2 map is a Model in workspace; skip Lobby, character models, and known non-map children
+		local skip = {'Lobby', 'Camera', 'Terrain'}
 		local best, bestCount = nil, 0
 		for _, child in workspace:GetChildren() do
-			if child:IsA('Model') and child ~= workspace.Terrain then
-				-- skip player characters
-				local isChar = false
-				for _, p in playersService:GetPlayers() do
-					if p.Character == child then isChar = true; break end
-				end
-				if not isChar then
-					local count = #child:GetDescendants()
-					if count > bestCount then
-						bestCount = count
-						best = child
-					end
-				end
+			if not child:IsA('Model') then continue end
+			local skipIt = false
+			for _, s in skip do
+				if child.Name == s then skipIt = true; break end
+			end
+			if skipIt then continue end
+			for _, p in playersService:GetPlayers() do
+				if p.Character == child then skipIt = true; break end
+			end
+			if skipIt then continue end
+			local count = #child:GetDescendants()
+			if count > bestCount then
+				bestCount = count
+				best = child
 			end
 		end
+
 		if best then
 			local part = best.PrimaryPart or best:FindFirstChildWhichIsA('BasePart')
 			if part then
 				tpTo(part.Position)
 			else
-				vain:CreateNotification('Vain', 'Map center not found', 3, 'alert')
+				vain:CreateNotification('Vain', 'Map has no parts', 3, 'alert')
 			end
 		else
-			vain:CreateNotification('Vain', 'No map loaded', 3, 'alert')
+			vain:CreateNotification('Vain', 'No map found — is a round active?', 3, 'alert')
 		end
-		tpMap:Toggle()
+		oneShot(tpMap)
 	end,
 })
 
-local tpLobby = World:CreateModule({
+local tpLobby
+tpLobby = World:CreateModule({
 	Name = 'Teleport to Lobby',
+	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
-		-- Try known MM2 lobby structures
-		local lobby = workspace:FindFirstChild('Lobby')
-			or workspace:FindFirstChild('LobbySpawns')
-		if lobby then
-			local part = lobby:FindFirstChildWhichIsA('BasePart')
-				or lobby:FindFirstChildWhichIsA('SpawnLocation')
-			if part then tpTo(part.Position); tpLobby:Toggle(); return end
+
+		-- Search for lobby-related containers in workspace
+		local lobbyNames = {'Lobby', 'LobbySpawns', 'SpawnArea', 'LobbyArea'}
+		for _, name in lobbyNames do
+			local lobby = workspace:FindFirstChild(name)
+			if lobby then
+				local part = lobby.PrimaryPart
+					or lobby:FindFirstChildWhichIsA('SpawnLocation')
+					or lobby:FindFirstChildWhichIsA('BasePart')
+				if part then
+					tpTo(part.Position)
+					oneShot(tpLobby)
+					return
+				end
+			end
 		end
-		-- Fallback: any SpawnLocation in workspace
+
+		-- Fallback: find any SpawnLocation directly in workspace
 		local spawn = workspace:FindFirstChildWhichIsA('SpawnLocation')
 		if spawn then
 			tpTo(spawn.Position)
 		else
 			vain:CreateNotification('Vain', 'Lobby not found', 3, 'alert')
 		end
-		tpLobby:Toggle()
+		oneShot(tpLobby)
 	end,
 })
 
