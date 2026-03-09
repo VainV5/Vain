@@ -6851,7 +6851,9 @@ general:CreateButton({
 			delfile('vain/profiles/'..mainapi.Profile..mainapi.Place..'.txt')
 		end
 		shared.vainreload = true
-		loadstring(readfile('vain/loader.lua'), 'vain/loader')()
+		local src = isfile('vain/loader.lua') and readfile('vain/loader.lua')
+			or game:HttpGet('https://raw.githubusercontent.com/VainV5/Vain/main/loader.lua', true)
+		loadstring(src, 'vain/loader')()
 	end,
 	Tooltip = 'This will set your profile to the default settings of Vain'
 })
@@ -6866,7 +6868,9 @@ general:CreateButton({
 	Name = 'Reinject',
 	Function = function()
 		shared.vainreload = true
-		loadstring(readfile('vain/reinstall.lua'), 'vain/reinstall')()
+		local _delfile = delfile or function(f) writefile(f, '') end
+		pcall(_delfile, 'vain/profiles/commit.txt')
+		loadstring(game:HttpGet('https://raw.githubusercontent.com/VainV5/Vain/main/vain.lua', true), 'vain/vain')()
 	end,
 	Tooltip = 'Wipes cache and reinstalls Vain'
 })
