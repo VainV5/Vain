@@ -4,6 +4,7 @@ local vain = shared.vain
 local cloneref = cloneref or function(obj) return obj end
 
 local playersService = cloneref(game:GetService('Players'))
+local inputService   = cloneref(game:GetService('UserInputService'))
 local lplr           = playersService.LocalPlayer
 
 -- ── Remote paths ──────────────────────────────────────────────────────────────
@@ -249,5 +250,202 @@ esp:CreateSlider({
 				objs.highlight.OutlineTransparency = outlineTransp
 			end
 		end
+	end,
+})
+
+-- ── Teleport helpers ──────────────────────────────────────────────────────────
+local function getHRP()
+	local char = lplr.Character
+	return char and char:FindFirstChild('HumanoidRootPart')
+end
+
+local function tpTo(pos)
+	local hrp = getHRP()
+	if hrp then hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0)) end
+end
+
+local function tpToPlayer(player)
+	if not player or not player.Character then return end
+	local hrp = player.Character:FindFirstChild('HumanoidRootPart')
+	if hrp then tpTo(hrp.Position) end
+end
+
+local function findByRole(role)
+	for name, r in playerRoles do
+		if r == role then
+			return playersService:FindFirstChild(name)
+		end
+	end
+end
+
+-- ── Combat — role teleports ───────────────────────────────────────────────────
+local Combat = vain.Categories.Combat
+
+local tpMurderer = Combat:CreateModule({
+	Name = 'Teleport to Murderer',
+	Function = function(enabled)
+		if not enabled then return end
+		local target = findByRole('Murderer')
+		if target then
+			tpToPlayer(target)
+		else
+			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
+		end
+		tpMurderer:Toggle()
+	end,
+})
+
+local tpSheriff = Combat:CreateModule({
+	Name = 'Teleport to Sheriff',
+	Function = function(enabled)
+		if not enabled then return end
+		local target = findByRole('Sheriff')
+		if target then
+			tpToPlayer(target)
+		else
+			vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
+		end
+		tpSheriff:Toggle()
+	end,
+})
+
+local tpPlayerTarget = 'None'
+local tpPlayer = Combat:CreateModule({
+	Name = 'Teleport to Player',
+	Function = function(enabled)
+		if not enabled then return end
+		local target = playersService:FindFirstChild(tpPlayerTarget)
+		if target then
+			tpToPlayer(target)
+		else
+			vain:CreateNotification('Vain', 'Player not found', 3, 'alert')
+		end
+		tpPlayer:Toggle()
+	end,
+})
+
+local playerOptions = {'None'}
+for _, p in playersService:GetPlayers() do
+	if p ~= lplr then table.insert(playerOptions, p.Name) end
+end
+
+local tpPlayerDropdown = tpPlayer:CreateDropdown({
+	Name    = 'Target',
+	Options = playerOptions,
+	Default = 'None',
+	Function = function(val)
+		tpPlayerTarget = val
+	end,
+})
+
+-- Keep dropdown in sync as players join/leave
+playersService.PlayerAdded:Connect(function(p)
+	table.insert(playerOptions, p.Name)
+end)
+playersService.PlayerRemoving:Connect(function(p)
+	local i = table.find(playerOptions, p.Name)
+	if i then table.remove(playerOptions, i) end
+	if tpPlayerTarget == p.Name then tpPlayerTarget = 'None' end
+end)
+
+-- ── Utility — click teleport ──────────────────────────────────────────────────
+local Utility = vain.Categories.Utility
+
+local clickTPConn
+local clickTP = Utility:CreateModule({
+	Name = 'Click Teleport',
+	Function = function(enabled)
+		if enabled then
+			clickTPConn = inputService.InputBegan:Connect(function(input, gpe)
+				if gpe then return end
+				if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+				if not inputService:IsKeyDown(Enum.KeyCode.LeftControl) then return end
+				local hrp = getHRP()
+				if not hrp then return end
+				local cam = workspace.CurrentCamera
+				local mouse = inputService:GetMouseLocation()
+				local ray = cam:ScreenPointToRay(mouse.X, mouse.Y)
+				local params = RaycastParams.new()
+				params.FilterDescendantsInstances = {lplr.Character}
+				params.FilterType = Enum.RaycastFilterType.Exclude
+				local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+				if result then
+					hrp.CFrame = CFrame.new(result.Position + Vector3.new(0, 3, 0))
+				end
+			end)
+		else
+			if clickTPConn then
+				clickTPConn:Disconnect()
+				clickTPConn = nil
+			end
+		end
+	end,
+})
+
+clickTP:CreateToggle({
+	Name = 'Require Ctrl',
+	Function = function() end,
+})
+
+-- ── World — map & lobby teleport ──────────────────────────────────────────────
+local World = vain.Categories.World
+
+local tpMap = World:CreateModule({
+	Name = 'Teleport to Map',
+	Function = function(enabled)
+		if not enabled then return end
+		-- MM2 loads the map as a Model in workspace during a round
+		-- Find the largest non-character model (the map)
+		local best, bestCount = nil, 0
+		for _, child in workspace:GetChildren() do
+			if child:IsA('Model') and child ~= workspace.Terrain then
+				-- skip player characters
+				local isChar = false
+				for _, p in playersService:GetPlayers() do
+					if p.Character == child then isChar = true; break end
+				end
+				if not isChar then
+					local count = #child:GetDescendants()
+					if count > bestCount then
+						bestCount = count
+						best = child
+					end
+				end
+			end
+		end
+		if best then
+			local part = best.PrimaryPart or best:FindFirstChildWhichIsA('BasePart')
+			if part then
+				tpTo(part.Position)
+			else
+				vain:CreateNotification('Vain', 'Map center not found', 3, 'alert')
+			end
+		else
+			vain:CreateNotification('Vain', 'No map loaded', 3, 'alert')
+		end
+		tpMap:Toggle()
+	end,
+})
+
+local tpLobby = World:CreateModule({
+	Name = 'Teleport to Lobby',
+	Function = function(enabled)
+		if not enabled then return end
+		-- Try known MM2 lobby structures
+		local lobby = workspace:FindFirstChild('Lobby')
+			or workspace:FindFirstChild('LobbySpawns')
+		if lobby then
+			local part = lobby:FindFirstChildWhichIsA('BasePart')
+				or lobby:FindFirstChildWhichIsA('SpawnLocation')
+			if part then tpTo(part.Position); tpLobby:Toggle(); return end
+		end
+		-- Fallback: any SpawnLocation in workspace
+		local spawn = workspace:FindFirstChildWhichIsA('SpawnLocation')
+		if spawn then
+			tpTo(spawn.Position)
+		else
+			vain:CreateNotification('Vain', 'Lobby not found', 3, 'alert')
+		end
+		tpLobby:Toggle()
 	end,
 })

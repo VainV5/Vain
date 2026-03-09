@@ -21,22 +21,18 @@ for _, folder in {'vain', 'vain/profiles', 'vain/games', 'vain/guis', 'vain/libr
 	end
 end
 
--- Resolve commit
-local commit
-if isfile('vain/profiles/commit.txt') then
-	commit = readfile('vain/profiles/commit.txt')
-	dbg('cached commit: ' .. commit)
-end
-if not commit or commit == '' then
-	dbg('fetching latest commit from GitHub...')
-	local _, subbed = pcall(function()
-		return game:HttpGet('https://github.com/VainV5/Vain')
-	end)
-	local pos = subbed and subbed:find('currentOid')
-	commit = pos and subbed:sub(pos + 13, pos + 52) or 'main'
-	commit = #commit == 40 and commit or 'main'
-	dbg('resolved commit: ' .. commit)
-end
+-- Always fetch latest commit from GitHub so new pushes are picked up automatically
+dbg('checking latest commit from GitHub...')
+local _, subbed = pcall(function()
+	return game:HttpGet('https://github.com/VainV5/Vain')
+end)
+local pos = subbed and subbed:find('currentOid')
+local commit = pos and subbed:sub(pos + 13, pos + 52) or nil
+commit = (commit and #commit == 40) and commit or 'main'
+dbg('latest commit: ' .. commit)
+
+local cachedCommit = isfile('vain/profiles/commit.txt') and readfile('vain/profiles/commit.txt') or ''
+dbg('cached commit: ' .. (cachedCommit ~= '' and cachedCommit or '(none)'))
 
 -- Download progress label
 local downloader = Instance.new('TextLabel')
@@ -87,8 +83,8 @@ local function wipeFolder(path)
 	end
 end
 
--- Wipe stale cache on update
-if not isfile('vain/profiles/commit.txt') or readfile('vain/profiles/commit.txt') ~= commit then
+-- Wipe stale cache when commit has changed
+if cachedCommit ~= commit then
 	dbg('commit changed — wiping cache')
 	wipeFolder('vain')
 	wipeFolder('vain/games')
