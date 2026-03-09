@@ -5,6 +5,7 @@ local cloneref = cloneref or function(obj) return obj end
 
 local playersService = cloneref(game:GetService('Players'))
 local inputService   = cloneref(game:GetService('UserInputService'))
+local runService     = cloneref(game:GetService('RunService'))
 local lplr           = playersService.LocalPlayer
 
 -- ── Remote paths ──────────────────────────────────────────────────────────────
@@ -449,3 +450,101 @@ local tpLobby = World:CreateModule({
 		tpLobby:Toggle()
 	end,
 })
+
+-- ── Blatant — noclip ──────────────────────────────────────────────────────────
+local Blatant = vain.Categories.Blatant
+
+local noclipConn
+local noclip = Blatant:CreateModule({
+	Name = 'Noclip',
+	Bind = {},
+	Function = function(enabled)
+		if enabled then
+			noclipConn = runService.Stepped:Connect(function()
+				local char = lplr.Character
+				if not char then return end
+				for _, part in char:GetDescendants() do
+					if part:IsA('BasePart') then
+						part.CanCollide = false
+					end
+				end
+			end)
+		else
+			if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+		end
+	end,
+})
+
+-- ── Blatant — fly ─────────────────────────────────────────────────────────────
+local flySpeed = 50
+local flyConn
+local flyBV, flyBG
+
+local function cleanFly()
+	if flyBV and flyBV.Parent then flyBV:Destroy() end
+	if flyBG and flyBG.Parent then flyBG:Destroy() end
+	flyBV, flyBG = nil, nil
+	if flyConn then flyConn:Disconnect(); flyConn = nil end
+end
+
+local fly = Blatant:CreateModule({
+	Name = 'Fly',
+	Bind = {},
+	Function = function(enabled)
+		local char = lplr.Character
+		local hrp  = char and char:FindFirstChild('HumanoidRootPart')
+		local hum  = char and char:FindFirstChildOfClass('Humanoid')
+		if not hrp or not hum then return end
+
+		if enabled then
+			hum.PlatformStand = true
+
+			flyBV = Instance.new('BodyVelocity')
+			flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+			flyBV.Velocity = Vector3.new(0, 0, 0)
+			flyBV.Parent   = hrp
+
+			flyBG = Instance.new('BodyGyro')
+			flyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+			flyBG.P         = 1e4
+			flyBG.CFrame    = hrp.CFrame
+			flyBG.Parent    = hrp
+
+			flyConn = runService.Heartbeat:Connect(function()
+				local cam = workspace.CurrentCamera
+				local cf  = cam.CFrame
+				local dir = Vector3.new(0, 0, 0)
+
+				if inputService:IsKeyDown(Enum.KeyCode.W) then dir = dir + cf.LookVector end
+				if inputService:IsKeyDown(Enum.KeyCode.S) then dir = dir - cf.LookVector end
+				if inputService:IsKeyDown(Enum.KeyCode.A) then dir = dir - cf.RightVector end
+				if inputService:IsKeyDown(Enum.KeyCode.D) then dir = dir + cf.RightVector end
+				if inputService:IsKeyDown(Enum.KeyCode.Space)     then dir = dir + Vector3.new(0, 1, 0) end
+				if inputService:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+
+				flyBV.Velocity = dir.Magnitude > 0 and (dir.Unit * flySpeed) or Vector3.new(0, 0, 0)
+				flyBG.CFrame   = cf
+			end)
+		else
+			cleanFly()
+			local h = lplr.Character and lplr.Character:FindFirstChildOfClass('Humanoid')
+			if h then h.PlatformStand = false end
+		end
+	end,
+})
+
+fly:CreateSlider({
+	Name    = 'Speed',
+	Min     = 10,
+	Max     = 200,
+	Default = 50,
+	Function = function(val)
+		flySpeed = val
+	end,
+})
+
+-- Clean up on character reset (respawn)
+lplr.CharacterAdded:Connect(function()
+	cleanFly()
+	if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
+end)
