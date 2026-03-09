@@ -9,6 +9,8 @@ local isfile = isfile or function(file)
 	return suc and res ~= nil and res ~= ''
 end
 
+local function dbg(msg) warn('[Vain]', msg) end
+
 local function getCommit()
 	return isfile('vain/profiles/commit.txt') and readfile('vain/profiles/commit.txt') or 'main'
 end
@@ -16,42 +18,72 @@ end
 local function downloadFile(path, func)
 	local remotePath = path:gsub('vain/', '')
 	if not isfile(path) then
+		local url = 'https://raw.githubusercontent.com/VainV5/Vain/' .. getCommit() .. '/' .. remotePath
+		dbg('downloading: ' .. url)
 		local suc, res = pcall(function()
-			return game:HttpGet('https://raw.githubusercontent.com/VainV5/Vain/' .. getCommit() .. '/' .. remotePath, true)
+			return game:HttpGet(url, true)
 		end)
 		if not suc or res == '404: Not Found' then
+			dbg('FAILED: ' .. remotePath .. ' — ' .. tostring(res))
 			error(res)
 		end
+		dbg('downloaded: ' .. remotePath .. ' (' .. #res .. ' bytes)')
 		if path:find('.lua') then
 			res = '--[vain cache]\n' .. res
 		end
 		writefile(path, res)
+	else
+		dbg('cached: ' .. path)
 	end
 	return (func or readfile)(path)
 end
 
 -- Load GUI
-local vain = loadstring(downloadFile('vain/guis/new.lua'), 'gui')()
+dbg('loading GUI...')
+local ok, vain = pcall(function()
+	return loadstring(downloadFile('vain/guis/new.lua'), 'gui')()
+end)
+if not ok then dbg('GUI ERROR: ' .. tostring(vain)) error(vain) end
+dbg('GUI loaded')
 shared.vain = vain
 
--- Load universal module (runs on every game)
-loadstring(downloadFile('vain/games/universal.lua'), 'universal')()
+-- Load universal module
+dbg('loading universal...')
+local uok, uerr = pcall(function()
+	loadstring(downloadFile('vain/games/universal.lua'), 'universal')()
+end)
+if not uok then dbg('universal ERROR: ' .. tostring(uerr)) end
 
--- Load game-specific module if available
+-- Load game-specific module
 local gameFile = 'vain/games/' .. game.PlaceId .. '.lua'
+dbg('looking for game script: ' .. gameFile .. ' (PlaceId: ' .. game.PlaceId .. ')')
 if isfile(gameFile) then
-	loadstring(readfile(gameFile), tostring(game.PlaceId))()
+	dbg('loading cached game script...')
+	local gok, gerr = pcall(function()
+		loadstring(readfile(gameFile), tostring(game.PlaceId))()
+	end)
+	if not gok then dbg('game script ERROR: ' .. tostring(gerr)) end
 else
+	local url = 'https://raw.githubusercontent.com/VainV5/Vain/' .. getCommit() .. '/games/' .. game.PlaceId .. '.lua'
+	dbg('downloading game script: ' .. url)
 	local suc, res = pcall(function()
-		return game:HttpGet('https://raw.githubusercontent.com/VainV5/Vain/' .. getCommit() .. '/games/' .. game.PlaceId .. '.lua')
+		return game:HttpGet(url)
 	end)
 	if suc and res ~= '404: Not Found' then
+		dbg('game script downloaded (' .. #res .. ' bytes), running...')
 		writefile(gameFile, res)
-		loadstring(res, tostring(game.PlaceId))()
+		local gok, gerr = pcall(function()
+			loadstring(res, tostring(game.PlaceId))()
+		end)
+		if not gok then dbg('game script ERROR: ' .. tostring(gerr)) end
+	else
+		dbg('no game script for PlaceId ' .. game.PlaceId .. ' (404 or error)')
 	end
 end
 
 -- Finish loading
+dbg('calling vain:Load()...')
 vain:Load()
 task.wait(0.5)
 vain:CreateNotification('Vain', 'Press ' .. table.concat(vain.Keybind, ' + '):upper() .. ' to open GUI', 5)
+dbg('done')
