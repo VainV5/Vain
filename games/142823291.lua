@@ -294,6 +294,7 @@ local Combat = vain.Categories.Combat
 local tpMurderer
 tpMurderer = Combat:CreateModule({
 	Name = 'Teleport to Murderer',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
@@ -310,6 +311,7 @@ tpMurderer = Combat:CreateModule({
 local tpSheriff
 tpSheriff = Combat:CreateModule({
 	Name = 'Teleport to Sheriff',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
@@ -327,6 +329,7 @@ local tpPlayerTarget = ''
 local tpPlayer
 tpPlayer = Combat:CreateModule({
 	Name = 'Teleport to Player',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
@@ -388,6 +391,7 @@ clickTP = Utility:CreateModule({
 
 clickTP:CreateToggle({
 	Name = 'Require Ctrl',
+	Default = true,
 	Function = function(enabled)
 		requireCtrl = enabled
 	end,
@@ -399,6 +403,7 @@ local World = vain.Categories.World
 local tpMap
 tpMap = World:CreateModule({
 	Name = 'Teleport to Map',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
@@ -441,6 +446,7 @@ tpMap = World:CreateModule({
 local tpLobby
 tpLobby = World:CreateModule({
 	Name = 'Teleport to Lobby',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end

@@ -2,9 +2,9 @@ local mainapi = {
 	Categories = {},
 	Indicators = {},
 	GUIColor = {
-		Hue = 0.46,
-		Sat = 0.96,
-		Value = 0.52
+		Hue = 0.61,
+		Sat = 0.90,
+		Value = 0.95
 	},
 	HeldKeybinds = {},
 	Keybind = {'RightShift'},
@@ -3709,7 +3709,7 @@ function mainapi:CreateCategory(categorysettings)
 		modulebutton.BackgroundColor3 = uipallet.Main
 		modulebutton.BorderSizePixel = 0
 		modulebutton.AutoButtonColor = false
-		modulebutton.Text = '            '..({modulesettings.Name:gsub(' ', '')})[1]
+		modulebutton.Text = '            '..modulesettings.Name
 		modulebutton.TextXAlignment = Enum.TextXAlignment.Left
 		modulebutton.TextColor3 = color.Dark(uipallet.Text, 0.16)
 		modulebutton.TextSize = 14
@@ -6317,7 +6317,9 @@ function mainapi:Load(skipgui, profile, profiledata)
 				end
 				if v.Enabled ~= object.Enabled then
 					if skipgui then
-						if self.ToggleNotifications.Enabled then self:CreateNotification('Module Toggled', i.."<font color='#FFFFFF'> has been </font>"..(v.Enabled and "<font color='#5AFF5A'>Enabled</font>" or "<font color='#FF5A5A'>Disabled</font>").."<font color='#FFFFFF'>!</font>", 0.75) end
+						if self.ToggleNotifications.Enabled and object.Notification ~= false then
+							self:CreateNotification('Module Toggled', i.."<font color='#FFFFFF'> has been </font>"..(v.Enabled and "<font color='#5AFF5A'>Enabled</font>" or "<font color='#FF5A5A'>Disabled</font>").."<font color='#FFFFFF'>!</font>", 3)
+						end
 					end
 					object:Toggle(true)
 				end
@@ -7914,8 +7916,8 @@ mainapi:Clean(inputService.InputBegan:Connect(function(inputObj, p)
 		for i, v in mainapi.Modules do
 			if checkKeybinds(mainapi.HeldKeybinds, v.Bind, inputObj.KeyCode.Name) then
 				toggled = true
-				if mainapi.ToggleNotifications.Enabled then
-					mainapi:CreateNotification('Module Toggled', i.."<font color='#FFFFFF'> has been </font>"..(not v.Enabled and "<font color='#5AFF5A'>Enabled</font>" or "<font color='#FF5A5A'>Disabled</font>").."<font color='#FFFFFF'>!</font>", 0.75)
+				if mainapi.ToggleNotifications.Enabled and v.Notification ~= false then
+					mainapi:CreateNotification('Module Toggled', i.."<font color='#FFFFFF'> has been </font>"..(not v.Enabled and "<font color='#5AFF5A'>Enabled</font>" or "<font color='#FF5A5A'>Disabled</font>").."<font color='#FFFFFF'>!</font>", 3)
 				end
 				v:Toggle(true)
 			end
@@ -7943,6 +7945,7 @@ mainapi:Clean(inputService.InputEnded:Connect(function(inputObj)
 			mainapi.Binding:SetBind(checkKeybinds(mainapi.HeldKeybinds, mainapi.Binding.Bind, inputObj.KeyCode.Name) and {} or mainapi.HeldKeybinds, true)
 			mainapi.Binding = nil
 		end
+			mainapi:Save()
 	end
 
 	local ind = table.find(mainapi.HeldKeybinds, inputObj.KeyCode.Name)
