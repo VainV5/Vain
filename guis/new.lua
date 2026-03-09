@@ -6864,9 +6864,9 @@ general:CreateButton({
 	Name = 'Reinject',
 	Function = function()
 		shared.vainreload = true
-		loadstring(readfile('vain/loader.lua'), 'vain/loader')()
+		loadstring(readfile('vain/reinstall.lua'), 'vain/reinstall')()
 	end,
-	Tooltip = 'Reloads Vain for debugging purposes'
+	Tooltip = 'Wipes cache and reinstalls Vain'
 })
 
 --[[
