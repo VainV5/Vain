@@ -195,12 +195,9 @@ for _, player in playersService:GetPlayers() do
 end
 
 -- ── Vain UI ───────────────────────────────────────────────────────────────────
-local Visual = vain:CreateCategory({
-	Name = 'Visual',
-	Icon = '',
-})
+local Render = vain.Categories.Render
 
-local esp = Visual:CreateModule({
+local esp = Render:CreateModule({
 	Name = 'Player ESP',
 	Bind = {},
 	Function = function(enabled)
