@@ -6847,15 +6847,21 @@ general:CreateButton({
 	Name = 'Reset current profile',
 	Function = function()
 		mainapi.Save = function() end
-		if isfile('vain/profiles/'..mainapi.Profile..mainapi.Place..'.txt') and delfile then
-			delfile('vain/profiles/'..mainapi.Profile..mainapi.Place..'.txt')
+		local _delfile = delfile or function(f) writefile(f, '') end
+		-- Delete per-profile module settings (enabled states, module keybinds, options)
+		if isfile('vain/profiles/'..mainapi.Profile..mainapi.Place..'.txt') then
+			pcall(_delfile, 'vain/profiles/'..mainapi.Profile..mainapi.Place..'.txt')
+		end
+		-- Delete GUI-wide settings (theme color, GUI keybind, window positions)
+		if isfile('vain/profiles/'..game.GameId..'.gui.txt') then
+			pcall(_delfile, 'vain/profiles/'..game.GameId..'.gui.txt')
 		end
 		shared.vainreload = true
 		local src = isfile('vain/loader.lua') and readfile('vain/loader.lua')
 			or game:HttpGet('https://raw.githubusercontent.com/VainV5/Vain/main/loader.lua', true)
 		loadstring(src, 'vain/loader')()
 	end,
-	Tooltip = 'This will set your profile to the default settings of Vain'
+	Tooltip = 'Resets all settings to default and reloads Vain'
 })
 general:CreateButton({
 	Name = 'Self destruct',
