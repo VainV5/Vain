@@ -564,29 +564,36 @@ local function flingPlayer(target)
 	if setsimulationradius then pcall(setsimulationradius, math.huge) end
 	if hum then hum.PlatformStand = true end
 
-	-- Attach a BodyAngularVelocity so our character spins wildly —
-	-- this adds rotational chaos on top of the linear velocity blasts.
+	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
+	if not tHRP then
+		if hum then hum.PlatformStand = false end
+		return
+	end
+
+	-- Weld our HRP to the target's HRP so we stay fused to them for the
+	-- entire fling duration — every force we apply is shared by both bodies.
+	myHRP.CFrame = tHRP.CFrame
+	local weld = Instance.new('WeldConstraint')
+	weld.Part0 = myHRP
+	weld.Part1 = tHRP
+	weld.Parent = myHRP
+
+	-- BodyAngularVelocity spins the fused pair at insane angular velocity
 	local bav = Instance.new('BodyAngularVelocity')
-	bav.MaxTorque      = Vector3.new(1e9, 1e9, 1e9)
+	bav.MaxTorque       = Vector3.new(1e9, 1e9, 1e9)
 	bav.AngularVelocity = Vector3.new(9000, 9000, 9000)
 	bav.Parent = myHRP
 
-	-- Run on Heartbeat (fires every physics step, ~240 Hz) instead of
-	-- task.wait() so we hit the target as many times per second as possible.
+	-- Heartbeat loop: blast random linear + angular velocity on both HRPs
+	-- every physics step (~240 Hz) for maximum chaos.
 	local conn
 	local t0 = tick()
 	conn = runService.Heartbeat:Connect(function()
-		if tick() - t0 > 2 then
-			conn:Disconnect()
-			return
-		end
+		if tick() - t0 > 2 then conn:Disconnect() return end
 
-		local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-		if not tHRP then conn:Disconnect() return end
 		local hrp = getHRP()
-		if not hrp then conn:Disconnect() return end
+		if not hrp or not tHRP.Parent then conn:Disconnect() return end
 
-		-- Massive random velocity — changes every physics step for maximum chaos
 		local vel = Vector3.new(
 			math.random(-8000, 8000),
 			math.random(2000, 8000),
@@ -604,12 +611,12 @@ local function flingPlayer(target)
 			tHRP.AssemblyLinearVelocity  = vel
 			tHRP.AssemblyAngularVelocity = angVel
 		end)
-		hrp.CFrame = tHRP.CFrame
 	end)
 
-	-- Wait for the Heartbeat loop to finish, then clean up
 	task.delay(2.1, function()
-		pcall(bav.Destroy, bav)
+		conn:Disconnect()
+		pcall(weld.Destroy, weld)
+		pcall(bav.Destroy,  bav)
 		if hum then hum.PlatformStand = false end
 		if setsimulationradius then pcall(setsimulationradius, 1000) end
 		task.wait(0.05)
