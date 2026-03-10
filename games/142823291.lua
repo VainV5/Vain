@@ -570,105 +570,124 @@ local autoGun = Combat:CreateModule({
 local _ = autoGun
 
 -- ── Combat — fling ────────────────────────────────────────────────────────────
--- Touch-fling: teleport onto the target and run the exact velocity loop from
--- the reference script (Heartbeat → multiply vel × 10000 → RenderStepped →
--- reset → Stepped → oscillate).  Collision with our body at that velocity is
--- what actually launches the target.
-local function flingPlayer(target)
-	if not target or not target.Character or target == lplr then return end
-	local myHRP = getHRP()
-	if not myHRP then return end
+-- Exact reference-script loop: while active, stick to the target every frame
+-- then blast our own Velocity × 10000 so the server-side collision sends them
+-- flying.  Toggle OFF to stop.
+local flingActive = false
 
-	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
-	if not tHRP then return end
+local function runFlingLoop(getTarget)
+	local movel = 0.1
+	while flingActive do
+		runService.Heartbeat:Wait()
 
-	task.spawn(function()
-		-- Stick on top of the target
-		myHRP.CFrame = tHRP.CFrame
+		local c   = lplr.Character
+		local hrp = c and c:FindFirstChild('HumanoidRootPart')
+		if not hrp then continue end
 
-		local movel = 0.1
-		for _ = 1, 8 do
-			runService.Heartbeat:Wait()
+		local target  = getTarget()
+		local tChar   = target and target.Character
+		local tHRP    = tChar and tChar:FindFirstChild('HumanoidRootPart')
+		if not tHRP then continue end
 
-			local hrp     = getHRP()
-			local curTHRP = target.Character
-				and target.Character:FindFirstChild('HumanoidRootPart')
-			if not hrp or not curTHRP then break end
+		-- Stay glued to target
+		hrp.CFrame = tHRP.CFrame
 
-			-- Re-stick so we don't drift away between frames
-			hrp.CFrame = curTHRP.CFrame
-
-			-- Velocity blast (reference logic, verbatim)
-			local vel = hrp.Velocity
-			hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
-			runService.RenderStepped:Wait()
-			hrp.Velocity = vel
-			runService.Stepped:Wait()
-			hrp.Velocity = vel + Vector3.new(0, movel, 0)
-			movel = -movel
-		end
-	end)
+		-- Reference velocity blast
+		local vel = hrp.Velocity
+		hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+		runService.RenderStepped:Wait()
+		hrp.Velocity = vel
+		runService.Stepped:Wait()
+		hrp.Velocity = vel + Vector3.new(0, movel, 0)
+		movel = -movel
+	end
 end
 
-local flingMurderer
-flingMurderer = Combat:CreateModule({
+-- flingOnce: a few loop cycles used by kill aura / auto-fling modules
+local function flingOnce(target)
+	if not target or not target.Character or target == lplr then return end
+	local movel = 0.1
+	for _ = 1, 3 do
+		runService.Heartbeat:Wait()
+		local hrp   = getHRP()
+		local tChar = target.Character
+		local tHRP  = tChar and tChar:FindFirstChild('HumanoidRootPart')
+		if not hrp or not tHRP then break end
+		hrp.CFrame = tHRP.CFrame
+		local vel = hrp.Velocity
+		hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+		runService.RenderStepped:Wait()
+		hrp.Velocity = vel
+		runService.Stepped:Wait()
+		hrp.Velocity = vel + Vector3.new(0, movel, 0)
+		movel = -movel
+	end
+end
+
+local flingMurderer = Combat:CreateModule({
 	Name = 'Fling Murderer',
-	Tooltip  = 'One-shot: flings the murderer with extreme velocity',
-	Notification = false,
 	Bind = {},
 	Function = function(enabled)
-		if not enabled then return end
-		local target = findByRole('Murderer')
-		if target then
-			task.spawn(flingPlayer, target)
-		else
-			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
+		flingActive = enabled
+		if enabled then
+			local target = findByRole('Murderer')
+			if target then
+				task.spawn(runFlingLoop, function()
+					return findByRole('Murderer')
+				end)
+			else
+				vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
+				flingActive = false
+				flingMurderer:Toggle()
+			end
 		end
-		oneShot(flingMurderer)
 	end,
 })
 
-local flingSheriff
-flingSheriff = Combat:CreateModule({
+local flingSheriff = Combat:CreateModule({
 	Name = 'Fling Sheriff',
-	Tooltip  = 'One-shot: flings the sheriff with extreme velocity',
-	Notification = false,
 	Bind = {},
 	Function = function(enabled)
-		if not enabled then return end
-		local target = findByRole('Sheriff')
-		if target then
-			task.spawn(flingPlayer, target)
-		else
-			vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
+		flingActive = enabled
+		if enabled then
+			local target = findByRole('Sheriff')
+			if target then
+				task.spawn(runFlingLoop, function()
+					return findByRole('Sheriff')
+				end)
+			else
+				vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
+				flingActive = false
+				flingSheriff:Toggle()
+			end
 		end
-		oneShot(flingSheriff)
 	end,
 })
 
 local flingPlayerTarget = ''
-local flingPlayerModule
 local flingPlayerDropdown
-flingPlayerModule = Combat:CreateModule({
+local flingPlayerModule = Combat:CreateModule({
 	Name = 'Fling Player',
-	Tooltip  = 'One-shot: flings the selected player with extreme velocity',
-	Notification = false,
 	Bind = {},
 	Function = function(enabled)
-		if not enabled then return end
-		local target = flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
-		if target then
-			task.spawn(flingPlayer, target)
-		else
-			vain:CreateNotification('Vain', 'Select a player first', 3, 'alert')
+		flingActive = enabled
+		if enabled then
+			local target = flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
+			if target then
+				task.spawn(runFlingLoop, function()
+					return flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
+				end)
+			else
+				vain:CreateNotification('Vain', 'Select a player first', 3, 'alert')
+				flingActive = false
+				flingPlayerModule:Toggle()
+			end
 		end
-		oneShot(flingPlayerModule)
 	end,
 })
 
 flingPlayerDropdown = flingPlayerModule:CreateDropdown({
 	Name     = 'Player',
-	Tooltip  = 'Select which player to fling',
 	List     = getPlayerNames(),
 	Function = function(val)
 		flingPlayerTarget = val or ''
@@ -1839,7 +1858,7 @@ local killAura = Combat:CreateModule({
 					if (myHRP.Position - tHRP.Position).Magnitude > killAuraRadius then continue end
 					if (killAuraCooldowns[p] or 0) + 1.8 > now then continue end
 					killAuraCooldowns[p] = now
-					task.spawn(flingPlayer, p)
+					task.spawn(flingOnce, p)
 				end
 			end)
 		else
@@ -1879,7 +1898,7 @@ local autoFlingMurdererModule = Combat:CreateModule({
 				if not murderer or not murderer.Character then return end
 				if not murderer.Character:FindFirstChild('HumanoidRootPart') then return end
 				autoFlingCooldown = true
-				task.spawn(flingPlayer, murderer)
+				task.spawn(flingOnce, murderer)
 				task.delay(2.5, function() autoFlingCooldown = false end)
 			end)
 		else
