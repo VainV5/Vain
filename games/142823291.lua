@@ -578,7 +578,6 @@ local function flingPlayer(target)
 	if not target or not target.Character or target == lplr then return end
 	local myHRP = getHRP()
 	if not myHRP then return end
-	local origin = myHRP.CFrame
 
 	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not tHRP then return end
@@ -591,7 +590,7 @@ local function flingPlayer(target)
 		for _ = 1, 8 do
 			runService.Heartbeat:Wait()
 
-			local hrp    = getHRP()
+			local hrp     = getHRP()
 			local curTHRP = target.Character
 				and target.Character:FindFirstChild('HumanoidRootPart')
 			if not hrp or not curTHRP then break end
@@ -607,13 +606,6 @@ local function flingPlayer(target)
 			runService.Stepped:Wait()
 			hrp.Velocity = vel + Vector3.new(0, movel, 0)
 			movel = -movel
-		end
-
-		-- Return to where we were standing
-		task.wait(0.1)
-		local hrp = getHRP()
-		if hrp then
-			hrp.CFrame = origin
 		end
 	end)
 end
