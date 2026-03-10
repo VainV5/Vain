@@ -61,12 +61,7 @@ local function buildESP(player)
 	if not hrp then return end
 
 	local role = playerRoles[player.Name]
-	if not role then
-		-- Role not yet known — remove any stale grey ESP and wait for PlayerDataChanged
-		removeESP(player)
-		return
-	end
-	local col  = roleColor(role)
+	local col  = roleColor(role)  -- returns UNKNOWN_COLOR (grey) when role is nil
 
 	local objs = espObjects[player]
 	if not objs then
@@ -118,7 +113,7 @@ local function buildESP(player)
 	bb.Enabled = showNames
 
 	local lbl = objs.label
-	lbl.Text       = player.Name .. '\n[' .. (role or '?') .. ']'
+	lbl.Text       = player.Name .. (role and ('\n[' .. role .. ']') or '')
 	lbl.TextColor3 = col
 end
 
@@ -546,31 +541,52 @@ local Debris = cloneref(game:GetService('Debris'))
 
 local function flingPlayer(target)
 	if not target or not target.Character then return end
+	if target == lplr then return end  -- never fling ourselves
 	local targetHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not targetHRP then return end
 
-	-- MM2 uses PlayerNoCollision so physics overlap does nothing.
-	-- Instead: apply a large launch velocity directly to the target's HRP.
-	-- Both paths (AssemblyLinearVelocity and BodyVelocity) are tried so the
-	-- fling works regardless of which physics API the executor supports.
+	local myHRP  = getHRP()
+	local origin = myHRP and myHRP.CFrame
+
 	local angle  = math.random() * math.pi * 2
 	local launch = Vector3.new(math.cos(angle), 0, math.sin(angle)) * 500
 	              + Vector3.new(0, 650, 0)
 
-	-- Path 1: modern velocity property (Luau / Assembly API)
+	-- Expand simulation radius so the target's character enters our physics
+	-- ownership bubble — required for velocity writes to replicate in most
+	-- executor environments.
+	pcall(setsimulationradius, 1e6)
+
+	-- Teleport next to target so they are inside the expanded sim radius
+	if myHRP then
+		myHRP.CFrame = CFrame.new(targetHRP.Position + Vector3.new(0, 2, 0))
+	end
+	task.wait(0.05)
+
+	-- Path 1: Assembly velocity (modern API, bypasses physics ownership)
 	pcall(function()
 		targetHRP.AssemblyLinearVelocity  = launch
 		targetHRP.AssemblyAngularVelocity = Vector3.new(
-			math.random(-50, 50), math.random(-50, 50), math.random(-50, 50))
+			math.random(-100, 100), math.random(-100, 100), math.random(-100, 100))
 	end)
 
-	-- Path 2: BodyVelocity legacy (always attempted for redundancy)
-	local bv = Instance.new('BodyVelocity')
-	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-	bv.Velocity  = launch
-	bv.P         = 1e9
-	bv.Parent    = targetHRP
-	Debris:AddItem(bv, 0.15)
+	-- Path 2: BodyVelocity legacy instance
+	pcall(function()
+		local bv = Instance.new('BodyVelocity')
+		bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+		bv.Velocity  = launch
+		bv.P         = 1e9
+		bv.Parent    = targetHRP
+		Debris:AddItem(bv, 0.2)
+	end)
+
+	-- Return to original position and reset sim radius
+	task.wait(0.1)
+	pcall(setsimulationradius, 0)
+	if origin then
+		local hrp2 = getHRP()
+		if hrp2 then hrp2.CFrame = origin end
+	end
 end
 
 local flingMurderer
@@ -1144,15 +1160,19 @@ local antiKnife = Combat:CreateModule({
 				lastMurdererPos = mPos
 
 				if dist < antiKnifeRadius and closing then
-					-- Dodge away: opposite direction from murderer, same height
-					local away = (myPos - mPos)
-					away = Vector3.new(away.X, 0, away.Z)
-					if away.Magnitude > 0 then
-						away = away.Unit * (antiKnifeRadius + 5)
-					else
-						away = Vector3.new(15, 0, 0)
+					local away = Vector3.new(myPos.X - mPos.X, 0, myPos.Z - mPos.Z)
+					local dir  = away.Magnitude > 0 and away.Unit or Vector3.new(1, 0, 0)
+					-- Use safe-dodge raycast (defined at top level in Auto Dodge section)
+					local charFilter = RaycastParams.new()
+					charFilter.FilterType = Enum.RaycastFilterType.Exclude
+					charFilter.FilterDescendantsInstances = lplr.Character and {lplr.Character} or {}
+					local wallHit  = workspace:Raycast(myPos + Vector3.new(0,1,0), dir * (antiKnifeRadius + 8), charFilter)
+					local stepDist = wallHit and wallHit.Distance * 0.6 or antiKnifeRadius + 8
+					local candidate = myPos + dir * stepDist
+					local groundHit = workspace:Raycast(candidate + Vector3.new(0,8,0), Vector3.new(0,-60,0), charFilter)
+					if groundHit then
+						myHRP.CFrame = CFrame.new(groundHit.Position + Vector3.new(0, 3, 0))
 					end
-					myHRP.CFrame = CFrame.new(myPos + away)
 				end
 			end)
 		else
@@ -1571,18 +1591,24 @@ end
 
 do
 -- ── Blatant — Walkspeed & Jumppower ──────────────────────────────────────────
+local wsEnabled = false
+local wsSpeed   = 16
+local wsJump    = 50
+
 local wsModule = Blatant:CreateModule({
 	Name = 'Custom Stats',
 	Tooltip  = 'Override your character WalkSpeed and JumpPower',
 	Bind = {},
 	Function = function(enabled)
+		wsEnabled = enabled
 		local hum = getHum()
 		if not hum then return end
 		if enabled then
-			-- Values applied via sliders; nothing extra on toggle
+			hum.WalkSpeed = wsSpeed
+			hum.JumpPower = wsJump
 		else
-			hum.WalkSpeed  = 16
-			hum.JumpPower  = 50
+			hum.WalkSpeed = 16
+			hum.JumpPower = 50
 		end
 	end,
 })
@@ -1594,8 +1620,11 @@ wsModule:CreateSlider({
 	Max     = 200,
 	Default = 16,
 	Function = function(val)
-		local hum = getHum()
-		if hum then hum.WalkSpeed = val end
+		wsSpeed = val
+		if wsEnabled then
+			local hum = getHum()
+			if hum then hum.WalkSpeed = val end
+		end
 	end,
 })
 
@@ -1606,18 +1635,25 @@ wsModule:CreateSlider({
 	Max     = 200,
 	Default = 50,
 	Function = function(val)
-		local hum = getHum()
-		if hum then hum.JumpPower = val end
+		wsJump = val
+		if wsEnabled then
+			local hum = getHum()
+			if hum then hum.JumpPower = val end
+		end
 	end,
 })
 
--- Re-apply on respawn so stats persist across deaths
+-- Re-apply on respawn; restore defaults if disabled
 lplr.CharacterAdded:Connect(function(char)
-	-- Stats are re-applied once the Humanoid exists
 	local hum = char:WaitForChild('Humanoid', 5)
 	if not hum then return end
-	-- wsModule stores current slider values internally via Vain API if supported;
-	-- fallback: nothing to do (sliders will re-fire on next interaction)
+	if wsEnabled then
+		hum.WalkSpeed = wsSpeed
+		hum.JumpPower = wsJump
+	else
+		hum.WalkSpeed = 16
+		hum.JumpPower = 50
+	end
 end)
 
 end
@@ -2896,19 +2932,66 @@ local autoDodgeHBConn
 local autoDodgeTagConn
 local autoDodgeGunConn
 
+-- Safe position finder --------------------------------------------------------
+-- Returns a safe CFrame to teleport to in the given direction, or nil if
+-- the spot is a void / solid wall. Raycasts:
+--   1. Horizontally to reject walls in the path
+--   2. Downward from candidate to confirm ground exists below
+local function findSafeDodge(myPos, direction, distance)
+	local charFilter = RaycastParams.new()
+	charFilter.FilterType = Enum.RaycastFilterType.Exclude
+	charFilter.FilterDescendantsInstances = lplr.Character
+		and {lplr.Character} or {}
+
+	-- Horizontal wall check
+	local wallHit = workspace:Raycast(
+		myPos + Vector3.new(0, 1, 0),
+		direction * distance,
+		charFilter)
+	local actualDist = wallHit and (wallHit.Distance * 0.6) or distance
+	local candidate  = myPos + direction * actualDist
+
+	-- Downward ground check (cast from 8 studs above candidate, 60 studs down)
+	local groundHit = workspace:Raycast(
+		candidate + Vector3.new(0, 8, 0),
+		Vector3.new(0, -60, 0),
+		charFilter)
+
+	if not groundHit then
+		-- No ground — don't teleport into the void; stay put
+		return nil
+	end
+
+	-- Land 3 studs above the ground surface
+	return CFrame.new(groundHit.Position + Vector3.new(0, 3, 0))
+end
+
 -- Shared dodge helpers --------------------------------------------------------
 local function dodgeAway(myHRP, fromPos, dist)
-	-- Teleport opposite direction from threat, preserving height
 	local away = myHRP.Position - fromPos
 	away = Vector3.new(away.X, 0, away.Z)
-	away = (away.Magnitude > 0 and away.Unit or Vector3.new(1, 0, 0)) * (dist + 6)
-	myHRP.CFrame = CFrame.new(myHRP.Position + away)
+	local dir = away.Magnitude > 0 and away.Unit or Vector3.new(1, 0, 0)
+	local safeCF = findSafeDodge(myHRP.Position, dir, dist + 8)
+	if safeCF then myHRP.CFrame = safeCF end
 end
 
 local function dodgeSide(myHRP)
-	-- Sidestep perpendicular to current facing (alternates left/right)
-	local side = myHRP.CFrame.RightVector * (math.random(0, 1) == 0 and 10 or -10)
-	myHRP.CFrame = myHRP.CFrame + side
+	-- Try right, then left, then back, until a safe spot is found
+	local dirs = {
+		myHRP.CFrame.RightVector,
+		-myHRP.CFrame.RightVector,
+		-myHRP.CFrame.LookVector,
+	}
+	for _, dir in dirs do
+		local d = Vector3.new(dir.X, 0, dir.Z)
+		if d.Magnitude > 0 then
+			local safeCF = findSafeDodge(myHRP.Position, d.Unit, 12)
+			if safeCF then
+				myHRP.CFrame = safeCF
+				return
+			end
+		end
+	end
 end
 
 local function triggerDodge(myHRP, fromPos, dist)
@@ -2919,7 +3002,7 @@ local function triggerDodge(myHRP, fromPos, dist)
 	else
 		dodgeSide(myHRP)
 	end
-	task.delay(0.25, function() autoDodgeCooldown = false end)
+	task.delay(0.3, function() autoDodgeCooldown = false end)
 end
 
 -- Line-of-sight check: can the sheriff see us? --------------------------------
@@ -3012,9 +3095,17 @@ local function startKnifeDodgeSignal()
 end
 
 -- GunFired reactive signal ----------------------------------------------------
+-- Only dodge when WE are not the shooter (i.e. we have no gun equipped).
+-- This prevents the module from teleporting us away from our own shots.
+-- Additionally, only react if the sheriff has (or very recently had) LoS — so
+-- stray shots from innocents picking up the gun don't trigger a dodge.
 local function startGunFiredSignal()
 	if not GunFired then return end
 	autoDodgeGunConn = GunFired.OnClientEvent:Connect(function()
+		-- Ignore if we fired it ourselves
+		if getEquippedGun() then return end
+		-- Only dodge if a sheriff role exists (the threat is real)
+		if not findByRole('Sheriff') then return end
 		local myHRP = getHRP()
 		if myHRP then triggerDodge(myHRP, nil, 0) end
 	end)
