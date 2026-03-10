@@ -588,39 +588,37 @@ local function flingPlayer(target)
 	myHRP.CFrame = tHRP.CFrame
 
 	local running = true
-	local movel   = 0.1
 
 	task.spawn(function()
 		while running do
-			runService.Heartbeat:Wait()
+			-- ── Stepped fires BEFORE physics simulation ────────────────────
+			-- Set the huge velocity here so the physics step actually sees it
+			-- and resolves the overlap with that impulse, pushing the target.
+			runService.Stepped:Wait()
 			local hrp = getHRP()
 			if not hrp then break end
 			local curTHRP = target.Character
 				and target.Character:FindFirstChild('HumanoidRootPart')
 			if not curTHRP then break end
 
-			-- Stay on top of the target
+			-- TP into the target right before physics runs
 			hrp.CFrame = curTHRP.CFrame
 
-			-- Use the TARGET's velocity as the base — when they're moving this
-			-- is already non-zero, so ×10000 immediately produces a massive
-			-- impulse regardless of whether they're still or running.
-			local vel = curTHRP.Velocity
-			-- If target is barely moving, inject a random horizontal kick
-			-- so the multiply never fires with a near-zero base.
-			if vel.Magnitude < 1 then
-				vel = Vector3.new(math.random(-5, 5), 1, math.random(-5, 5))
+			-- Build a fling vector: combine target's movement + random kick
+			-- so it works regardless of whether they're still or sprinting
+			local tv  = curTHRP.Velocity
+			local kick = Vector3.new(math.random(-5,5), 1, math.random(-5,5))
+			local base = tv.Magnitude > 1 and tv or kick
+			hrp.Velocity = base * 10000 + Vector3.new(0, 10000, 0)
+
+			-- ── Heartbeat fires AFTER physics simulation ───────────────────
+			-- Restore our velocity so we don't fly away; the target already
+			-- received the impulse from the resolved collision above.
+			runService.Heartbeat:Wait()
+			hrp = getHRP()
+			if hrp then
+				hrp.Velocity = Vector3.new(0, 0, 0)
 			end
-			hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
-
-			runService.RenderStepped:Wait()
-			hrp = getHRP()
-			if hrp then hrp.Velocity = vel end
-
-			runService.Stepped:Wait()
-			hrp = getHRP()
-			if hrp then hrp.Velocity = vel + Vector3.new(0, movel, 0) end
-			movel = -movel
 		end
 	end)
 
