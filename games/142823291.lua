@@ -1107,6 +1107,7 @@ autoFarmModule:CreateSlider({
 
 local _af = autoFarmModule
 
+do
 -- ── Combat — Anti-Knife ───────────────────────────────────────────────────────
 -- When the murderer's HRP closes within the threshold AND is moving toward us,
 -- we snap a short burst away in the opposite direction.
@@ -1167,6 +1168,9 @@ antiKnife:CreateSlider({
 	Function = function(val) antiKnifeRadius = val end,
 })
 
+end
+
+do
 -- ── Combat — Murderer Proximity Alert ────────────────────────────────────────
 local alertRadius = 25
 local alertCooldown = false
@@ -1247,6 +1251,9 @@ proxAlert:CreateSlider({
 	Function = function(val) alertRadius = val end,
 })
 
+end
+
+do
 -- ── Combat — Auto Hero ────────────────────────────────────────────────────────
 -- When the sheriff dies (gun drops into workspace), automatically grabs the gun.
 -- Piggy-backs on the same gun-detection logic as Auto Teleport to Gun.
@@ -1278,6 +1285,9 @@ local autoHeroModule = Combat:CreateModule({
 })
 local _ah = autoHeroModule
 
+end
+
+do
 -- ── Combat — Gun ESP ──────────────────────────────────────────────────────────
 -- Puts a Highlight + floating label on the dropped gun so you can see it
 -- through walls without needing to teleport.
@@ -1363,6 +1373,9 @@ local gunEspModule = Combat:CreateModule({
 })
 local _ge = gunEspModule
 
+end
+
+do
 -- ── Render — Role Announcer ───────────────────────────────────────────────────
 -- When PlayerDataChanged fires (roles revealed), show a quick notification
 -- listing everyone's role in colour.
@@ -1399,6 +1412,9 @@ if GameplayRemotes then
 	end
 end
 
+end
+
+do
 -- ── Render — Murderer Trail ───────────────────────────────────────────────────
 -- A directional arrow at the edge of the screen that always points toward the
 -- murderer's world position, so you know which way to look/run.
@@ -1490,6 +1506,9 @@ local murdererTrail = Render:CreateModule({
 })
 local _mt = murdererTrail
 
+end
+
+do
 -- ── Utility — Teleport Back ───────────────────────────────────────────────────
 -- Saves up to 20 positions. Each press of the module (or bind) pops the latest
 -- and teleports you back. A separate "Save Position" one-shot pushes the current
@@ -1537,6 +1556,9 @@ tpBackModule = Utility:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Blatant — Walkspeed & Jumppower ──────────────────────────────────────────
 local function getHum()
 	local char = lplr.Character
@@ -1589,6 +1611,9 @@ lplr.CharacterAdded:Connect(function(char)
 	-- fallback: nothing to do (sliders will re-fire on next interaction)
 end)
 
+end
+
+do
 -- ── Blatant — Fullbright ──────────────────────────────────────────────────────
 local Lighting      = cloneref(game:GetService('Lighting'))
 local origLighting  = nil
@@ -1624,6 +1649,9 @@ local fullbright = Blatant:CreateModule({
 })
 local _fb = fullbright
 
+end
+
+do
 -- ── Blatant — Spin Bot ────────────────────────────────────────────────────────
 -- Continuously rotates our HumanoidRootPart at a set speed while leaving
 -- normal movement intact (only rotates, doesn't lock position).
@@ -1654,6 +1682,9 @@ spinBot:CreateSlider({
 	Function = function(val) spinSpeed = val end,
 })
 
+end
+
+do
 -- ── Blatant — Fake Lag ────────────────────────────────────────────────────────
 -- Jitters our character position at high speed to make us hard to knife
 -- and confuse other players about our real location.
@@ -1689,6 +1720,9 @@ fakeLag:CreateSlider({
 	Function = function(val) fakeLagAmount = val end,
 })
 
+end
+
+do
 -- ── Combat — Kill Aura ────────────────────────────────────────────────────────
 -- When enabled, automatically flings every other player who enters the radius.
 -- Most useful when you are the murderer.
@@ -1731,6 +1765,9 @@ killAura:CreateSlider({
 	Function = function(val) killAuraRadius = val end,
 })
 
+end
+
+do
 -- ── Combat — Auto Fling Murderer ──────────────────────────────────────────────
 -- Toggled: whenever the murderer enters the radius, flings them automatically.
 local autoFlingRadius   = 25
@@ -1770,6 +1807,9 @@ autoFlingMurdererModule:CreateSlider({
 	Function = function(val) autoFlingRadius = val end,
 })
 
+end
+
+do
 -- ── Combat — Murderer Bait ────────────────────────────────────────────────────
 -- Slowly walks your character toward the murderer to bait them.
 -- When they get within the dodge radius, auto-teleports away safely.
@@ -1840,6 +1880,9 @@ murdererBaitModule:CreateSlider({
 	Function = function(val) baitDodgeRadius = val end,
 })
 
+end
+
+do
 -- ── Combat — Reach Extender ───────────────────────────────────────────────────
 -- Inflates the HumanoidRootPart so proximity-based triggers (coin collection,
 -- gun pickup) fire from farther away. Also widens physics collision volume.
@@ -1880,6 +1923,9 @@ reachExtender:CreateSlider({
 
 lplr.CharacterAdded:Connect(function() origHRPSize = nil end)
 
+end
+
+do
 -- ── Utility — Infinite Jump ───────────────────────────────────────────────────
 local infJumpConn
 
@@ -1901,6 +1947,9 @@ local infJump = Utility:CreateModule({
 })
 local _ij = infJump
 
+end
+
+do
 -- ── Utility — Loop Teleport ───────────────────────────────────────────────────
 -- Cycles through your saved positions (tpHistory) on a set interval.
 -- Save positions first with Save Position, then enable this to loop through them.
@@ -1942,6 +1991,9 @@ loopTp:CreateSlider({
 	Function = function(val) loopTpInterval = val / 1000 end,
 })
 
+end
+
+do
 -- ── Utility — Server Hop ──────────────────────────────────────────────────────
 local teleportService = cloneref(game:GetService('TeleportService'))
 
@@ -1962,6 +2014,9 @@ serverHop = Utility:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Utility — Anti-AFK ───────────────────────────────────────────────────────
 -- Micro-nudges your character every 55 s to prevent the Roblox idle kick.
 local antiAfkRunning = false
@@ -1991,6 +2046,9 @@ local antiAfk = Utility:CreateModule({
 })
 local _aa = antiAfk
 
+end
+
+do
 -- ── Blatant — Low Gravity ─────────────────────────────────────────────────────
 local origGravity = workspace.Gravity
 
@@ -2010,6 +2068,9 @@ lowGravity:CreateSlider({
 	Function = function(val) workspace.Gravity = val end,
 })
 
+end
+
+do
 -- ── Blatant — Ghost Mode ──────────────────────────────────────────────────────
 -- Sets Transparency = 1 on all character parts. Replicates to the server,
 -- making you visually invisible to other players too.
@@ -2046,6 +2107,9 @@ local _gm = ghostMode
 
 lplr.CharacterAdded:Connect(function() ghostOrigTransp = {} end)
 
+end
+
+do
 -- ── Render — Rainbow ESP ──────────────────────────────────────────────────────
 -- Overrides the ESP highlight colour with a smoothly cycling rainbow hue.
 -- Disable to restore normal role-based colouring.
@@ -2081,6 +2145,9 @@ local rainbowESP = Render:CreateModule({
 })
 local _re = rainbowESP
 
+end
+
+do
 -- ── Combat — Freeze Player ────────────────────────────────────────────────────
 -- Continuously anchors the target's HRP and zeroes their velocity.
 -- Requires an executor that lets you write to other players' parts.
@@ -2153,6 +2220,9 @@ vain:Clean(playersService.PlayerRemoving:Connect(function(p)
 	freezeDropdown:Change(getPlayerNames())
 end))
 
+end
+
+do
 -- ── Utility — Auto Respawn ────────────────────────────────────────────────────
 -- When your Humanoid dies, automatically calls LoadCharacter after a short delay
 -- so you skip the respawn screen entirely.
@@ -2180,6 +2250,9 @@ local autoRespawn = Utility:CreateModule({
 })
 local _ar = autoRespawn
 
+end
+
+do
 -- ── Utility — Egg Farm ────────────────────────────────────────────────────────
 -- Finds egg objects in the workspace (CurrencyEgg / RareEgg / any name containing
 -- "egg") and slow-teleports toward them the same way coin farm does.
@@ -2255,6 +2328,9 @@ eggFarmModule:CreateSlider({
 	Function = function(val) EGG_INTERVAL = val / 1000 end,
 })
 
+end
+
+do
 -- ── Blatant — Time of Day ─────────────────────────────────────────────────────
 -- Sets Lighting.ClockTime directly without touching other lighting properties.
 -- Works alongside Fullbright (they control separate properties).
@@ -2280,6 +2356,9 @@ todModule:CreateSlider({
 	end,
 })
 
+end
+
+do
 -- ── Blatant — Emote Spam ──────────────────────────────────────────────────────
 -- Repeatedly equips and activates the MM2 Emotes tool as fast as possible.
 -- This causes the character to rapidly glitch through emote animations.
@@ -2322,6 +2401,9 @@ local emoteSpam = Blatant:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Shadow Teleport ──────────────────────────────────────────────────
 -- Instantly teleports you behind the selected player (offset behind their
 -- LookVector so you appear at their back). One-shot per press.
@@ -2362,6 +2444,9 @@ vain:Clean(playersService.PlayerRemoving:Connect(function(p)
 	shadowDropdown:Change(getPlayerNames())
 end))
 
+end
+
+do
 -- ── Combat — Auto Throw Knife ─────────────────────────────────────────────────
 -- If you are the Murderer, continuously faces your character toward the nearest
 -- player and activates the Knife tool, causing it to be thrown automatically.
@@ -2413,6 +2498,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Utility — Follow Player ───────────────────────────────────────────────────
 -- Continuously teleports you to stay just behind a selected player.
 -- Uses the same slow-step approach as coin farm so it feels like real movement.
@@ -2474,6 +2562,9 @@ followModule:CreateSlider({
 	Function = function(val) FOLLOW_DISTANCE = val end,
 })
 
+end
+
+do
 -- ── Combat — Rapid Fire ───────────────────────────────────────────────────────
 -- Spams the equipped gun's Activate event every tick, bypassing the normal
 -- click-fire cadence. Only fires when a gun tool is actually equipped.
@@ -2498,6 +2589,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Knife Dodge ──────────────────────────────────────────────────────
 -- Watches for new instances tagged "ThrowingKnife" via CollectionService.
 -- When one appears within KNIFE_DODGE_RADIUS studs, sidesteps immediately.
@@ -2545,6 +2639,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Bullet Immunity (WeaponPassthrough) ──────────────────────────────
 -- The MM2 gun raycast filters out any part tagged "WeaponPassthrough".
 -- Tagging every BasePart of your own character with that tag means bullets
@@ -2591,6 +2688,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Stealth Mode ─────────────────────────────────────────────────────
 -- Fires the MM2 Stealth RemoteEvent (found in Remotes.Gameplay).
 -- In MM2 this is normally only available to the Murderer; firing it client-side
@@ -2626,6 +2726,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Perk Activator ───────────────────────────────────────────────────
 -- Repeatedly fires the ActivatePerk RemoteEvent found in Remotes.Gameplay.
 -- This bypasses the normal in-game cooldown, giving continuous perk effects.
@@ -2650,6 +2753,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Fake Gun ─────────────────────────────────────────────────────────
 -- Fires the FakeGun RemoteEvent in Remotes.Gameplay, which makes your character
 -- display the "holding gun" animation and visual to other clients. Murderers
@@ -2675,6 +2781,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Auto Trap ────────────────────────────────────────────────────────
 -- Fires PlaceTrap (RemoteFunction in ReplicatedStorage.TrapSystem) at the
 -- murderer's current position every N seconds. Murderers walk into the trap
@@ -2713,6 +2822,9 @@ Combat:CreateModule({
 	end,
 })
 
+end
+
+do
 -- ── Combat — Auto Dodge ───────────────────────────────────────────────────────
 -- Unified dodge system that protects against all three attack vectors:
 --   1. Stab  — murderer's HRP closing within radius → teleport away
@@ -2890,3 +3002,5 @@ autoDodgeModule:CreateSlider({
 	Default  = 60,
 	Function = function(val) autoDodgeShotRadius = val end,
 })
+end
+
