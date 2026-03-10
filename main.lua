@@ -59,10 +59,14 @@ local gameFile = 'vain/games/' .. game.PlaceId .. '.lua'
 dbg('looking for game script: ' .. gameFile .. ' (PlaceId: ' .. game.PlaceId .. ')')
 if isfile(gameFile) then
 	dbg('loading cached game script...')
-	local gok, gerr = pcall(function()
-		loadstring(readfile(gameFile), tostring(game.PlaceId))()
-	end)
-	if not gok then dbg('game script ERROR: ' .. tostring(gerr)) end
+	local src = readfile(gameFile)
+	local fn, lerr = loadstring(src, tostring(game.PlaceId))
+	if not fn then
+		dbg('game script SYNTAX ERROR: ' .. tostring(lerr))
+	else
+		local gok, gerr = pcall(fn)
+		if not gok then dbg('game script ERROR: ' .. tostring(gerr)) end
+	end
 else
 	local url = 'https://raw.githubusercontent.com/VainV5/Vain/' .. getCommit() .. '/games/' .. game.PlaceId .. '.lua'
 	dbg('downloading game script: ' .. url)
@@ -72,10 +76,13 @@ else
 	if suc and res ~= '404: Not Found' then
 		dbg('game script downloaded (' .. #res .. ' bytes), running...')
 		writefile(gameFile, res)
-		local gok, gerr = pcall(function()
-			loadstring(res, tostring(game.PlaceId))()
-		end)
-		if not gok then dbg('game script ERROR: ' .. tostring(gerr)) end
+		local fn, lerr = loadstring(res, tostring(game.PlaceId))
+		if not fn then
+			dbg('game script SYNTAX ERROR: ' .. tostring(lerr))
+		else
+			local gok, gerr = pcall(fn)
+			if not gok then dbg('game script ERROR: ' .. tostring(gerr)) end
+		end
 	else
 		dbg('no game script for PlaceId ' .. game.PlaceId .. ' (404 or error)')
 	end
