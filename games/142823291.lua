@@ -265,6 +265,11 @@ local function getHRP()
 	return char and char:FindFirstChild('HumanoidRootPart')
 end
 
+local function getHum()
+	local char = lplr.Character
+	return char and char:FindFirstChildOfClass('Humanoid')
+end
+
 local function tpTo(pos)
 	local hrp = getHRP()
 	if hrp then hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0)) end
@@ -530,61 +535,35 @@ local _ = autoGun
 -- Fling by spinning our own character rapidly while overlapping the target.
 -- This uses physics-driven collision: our HRP spins at high angular velocity,
 -- which transfers momentum to the target through the physics engine.
+local Debris = cloneref(game:GetService('Debris'))
+
 local function flingPlayer(target)
 	if not target or not target.Character then return end
 	local targetHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not targetHRP then return end
 
-	local myHRP = getHRP()
-	if not myHRP then return end
-	local myChar = lplr.Character
+	-- MM2 uses PlayerNoCollision so physics overlap does nothing.
+	-- Instead: apply a large launch velocity directly to the target's HRP.
+	-- Both paths (AssemblyLinearVelocity and BodyVelocity) are tried so the
+	-- fling works regardless of which physics API the executor supports.
+	local angle  = math.random() * math.pi * 2
+	local launch = Vector3.new(math.cos(angle), 0, math.sin(angle)) * 500
+	              + Vector3.new(0, 650, 0)
 
-	local origin   = myHRP.CFrame
-	local hum      = myChar:FindFirstChildOfClass('Humanoid')
+	-- Path 1: modern velocity property (Luau / Assembly API)
+	pcall(function()
+		targetHRP.AssemblyLinearVelocity  = launch
+		targetHRP.AssemblyAngularVelocity = Vector3.new(
+			math.random(-50, 50), math.random(-50, 50), math.random(-50, 50))
+	end)
 
-	-- PlatformStand lets us take manual control of physics
-	if hum then hum.PlatformStand = true end
-
-	-- Disable own collision so we can enter the target's space, then
-	-- re-enable it so the physics engine actually registers the overlap
-	for _, p in myChar:GetDescendants() do
-		if p:IsA('BasePart') then p.CanCollide = false end
-	end
-
-	-- Move into target
-	myHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 0.5, 0)
-
-	-- Re-enable collision to trigger physics interaction
-	for _, p in myChar:GetDescendants() do
-		if p:IsA('BasePart') then p.CanCollide = true end
-	end
-
-	-- Spin our own HRP at extreme angular velocity; the spin + collision
-	-- transfers kinetic energy to the target
-	local bav = Instance.new('BodyAngularVelocity')
-	bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-	bav.AngularVelocity = Vector3.new(
-		math.random(-1, 1) * 9000,
-		9000,
-		math.random(-1, 1) * 9000
-	)
-	bav.Parent = myHRP
-
-	-- Small upward push so there is room for the physics to act
+	-- Path 2: BodyVelocity legacy (always attempted for redundancy)
 	local bv = Instance.new('BodyVelocity')
-	bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-	bv.Velocity  = Vector3.new(0, 80, 0)
-	bv.Parent    = myHRP
-
-	task.wait(0.3)
-
-	if bav.Parent then bav:Destroy() end
-	if bv.Parent  then bv:Destroy()  end
-	if hum then hum.PlatformStand = false end
-
-	-- Return to where we were
-	local hrp2 = getHRP()
-	if hrp2 then hrp2.CFrame = origin end
+	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	bv.Velocity  = launch
+	bv.P         = 1e9
+	bv.Parent    = targetHRP
+	Debris:AddItem(bv, 0.15)
 end
 
 local flingMurderer
@@ -1560,11 +1539,6 @@ end
 
 do
 -- ── Blatant — Walkspeed & Jumppower ──────────────────────────────────────────
-local function getHum()
-	local char = lplr.Character
-	return char and char:FindFirstChildOfClass('Humanoid')
-end
-
 local wsModule = Blatant:CreateModule({
 	Name = 'Custom Stats',
 	Bind = {},
