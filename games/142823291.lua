@@ -547,6 +547,9 @@ local autoGun = Combat:CreateModule({
 local _ = autoGun
 
 -- ── Combat — fling ────────────────────────────────────────────────────────────
+-- Touch-fling technique: reads the HRP's live Velocity each step and multiplies
+-- it by 10 000, compounding momentum every physics step.  WeldConstraint ties
+-- the target's HRP to ours so every impulse we receive transfers to them too.
 local function flingPlayer(target)
 	if not target or not target.Character or target == lplr then return end
 
@@ -558,66 +561,55 @@ local function flingPlayer(target)
 	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not tHRP then return end
 
-	-- Claim network ownership of nearby physics objects
 	if setsimulationradius then pcall(setsimulationradius, math.huge) end
 	if hum then hum.PlatformStand = true end
 
-	-- TP into the target and weld so every force we apply carries to them
+	-- Fuse to target
 	myHRP.CFrame = tHRP.CFrame
 	local weld = Instance.new('WeldConstraint')
 	weld.Part0 = myHRP
 	weld.Part1 = tHRP
 	weld.Parent = myHRP
 
-	-- BodyVelocity gives *continuous* force every physics step — unlike
-	-- AssemblyLinearVelocity (one-shot write) it cannot be trivially reset
-	-- by the engine before the next frame.
-	local bv = Instance.new('BodyVelocity')
-	bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-	bv.Velocity = Vector3.new(0, 9999, 0)
-	bv.Parent   = myHRP
+	-- Seed a tiny velocity so the first multiply isn't × 0
+	myHRP.Velocity = Vector3.new(1, 1, 1)
 
-	local bav = Instance.new('BodyAngularVelocity')
-	bav.MaxTorque      = Vector3.new(1e9, 1e9, 1e9)
-	bav.AngularVelocity = Vector3.new(9000, 9000, 9000)
-	bav.Parent = myHRP
+	local running = true
+	local movel   = 0.1
 
-	-- Every physics step: randomise the BodyVelocity direction AND write
-	-- AssemblyLinearVelocity directly to both HRPs for redundancy.
-	local conn
-	local t0 = tick()
-	conn = runService.Heartbeat:Connect(function()
-		if tick() - t0 > 2 then conn:Disconnect() return end
-		local hrp = getHRP()
-		if not hrp or not tHRP.Parent then conn:Disconnect() return end
+	task.spawn(function()
+		while running do
+			-- Heartbeat: amplify current velocity × 10 000
+			runService.Heartbeat:Wait()
+			local hrp = getHRP()
+			if not hrp or not tHRP.Parent then break end
 
-		local vel = Vector3.new(
-			math.random(-9999, 9999),
-			math.random(5000, 9999),
-			math.random(-9999, 9999)
-		)
-		local ang = Vector3.new(
-			math.random(-9999, 9999),
-			math.random(-9999, 9999),
-			math.random(-9999, 9999)
-		)
+			local vel = hrp.Velocity
+			hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+			pcall(function()
+				tHRP.Velocity = tHRP.Velocity * 10000 + Vector3.new(0, 10000, 0)
+			end)
 
-		bv.Velocity             = vel
-		bav.AngularVelocity     = ang
-		hrp.AssemblyLinearVelocity  = vel
-		hrp.AssemblyAngularVelocity = ang
-		pcall(function()
-			tHRP.AssemblyLinearVelocity  = vel
-			tHRP.AssemblyAngularVelocity = ang
-			tHRP.CFrame = hrp.CFrame  -- drag their position along with ours
-		end)
+			-- RenderStepped: restore so we don't leave the map ourselves
+			runService.RenderStepped:Wait()
+			hrp = getHRP()
+			if hrp then hrp.Velocity = vel end
+			pcall(function() tHRP.Velocity = vel end)
+
+			-- Stepped: small oscillating nudge keeps momentum building
+			runService.Stepped:Wait()
+			hrp = getHRP()
+			if hrp then hrp.Velocity = vel + Vector3.new(0, movel, 0) end
+			pcall(function()
+				tHRP.Velocity = vel + Vector3.new(0, movel, 0)
+			end)
+			movel = -movel
+		end
 	end)
 
-	task.delay(2.1, function()
-		conn:Disconnect()
+	task.delay(2, function()
+		running = false
 		pcall(weld.Destroy, weld)
-		pcall(bv.Destroy,   bv)
-		pcall(bav.Destroy,  bav)
 		if hum then hum.PlatformStand = false end
 		if setsimulationradius then pcall(setsimulationradius, 1000) end
 		task.wait(0.05)
