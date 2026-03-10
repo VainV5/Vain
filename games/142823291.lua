@@ -3004,43 +3004,50 @@ local function findSafeDodge(myPos, direction, distance)
 	return CFrame.new(groundHit.Position + Vector3.new(0, 3, 0))
 end
 
--- Shared dodge helpers --------------------------------------------------------
-local function dodgeAway(myHRP, fromPos, dist)
-	local away = myHRP.Position - fromPos
-	away = Vector3.new(away.X, 0, away.Z)
-	local dir = away.Magnitude > 0 and away.Unit or Vector3.new(1, 0, 0)
-	local safeCF = findSafeDodge(myHRP.Position, dir, dist + 8)
-	if safeCF then myHRP.CFrame = safeCF end
-end
+-- Sweep all directions to find ANY safe landing spot -------------------------
+-- Tries 16 evenly-spread horizontal angles at several distances.
+-- Falls back to a straight upward jump if every horizontal path is blocked.
+local function bestDodgeCF(myHRP, fromPos, preferredDist)
+	local myPos = myHRP.Position
 
-local function dodgeSide(myHRP)
-	-- Try right, then left, then back, until a safe spot is found
-	local dirs = {
-		myHRP.CFrame.RightVector,
-		-myHRP.CFrame.RightVector,
-		-myHRP.CFrame.LookVector,
-	}
+	-- Build priority-ordered direction list:
+	-- 1. Directly away from the threat  2. 16 swept compass directions
+	local dirs = {}
+	if fromPos then
+		local away = Vector3.new(myPos.X - fromPos.X, 0, myPos.Z - fromPos.Z)
+		if away.Magnitude > 0 then
+			table.insert(dirs, away.Unit)
+		end
+	end
+	for i = 0, 15 do
+		local a = (i / 16) * math.pi * 2
+		table.insert(dirs, Vector3.new(math.cos(a), 0, math.sin(a)))
+	end
+
+	-- For each direction try the preferred distance, then half, then 1.5×
 	for _, dir in dirs do
-		local d = Vector3.new(dir.X, 0, dir.Z)
-		if d.Magnitude > 0 then
-			local safeCF = findSafeDodge(myHRP.Position, d.Unit, 12)
-			if safeCF then
-				myHRP.CFrame = safeCF
-				return
+		for _, d in {preferredDist, preferredDist * 0.5, preferredDist * 1.5} do
+			local cf = findSafeDodge(myPos, dir, d)
+			if cf then
+				-- Accept only if this spot is actually farther from the threat
+				if not fromPos then return cf end
+				local gain = (cf.Position - fromPos).Magnitude
+				            - (myPos       - fromPos).Magnitude
+				if gain > 2 then return cf end
 			end
 		end
 	end
+
+	-- Last resort: jump straight up 25 studs — always clears any corner
+	return CFrame.new(myPos + Vector3.new(0, 25, 0))
 end
 
 local function triggerDodge(myHRP, fromPos, dist)
 	if autoDodgeCooldown then return end
 	autoDodgeCooldown = true
-	if fromPos then
-		dodgeAway(myHRP, fromPos, dist)
-	else
-		dodgeSide(myHRP)
-	end
-	task.delay(0.3, function() autoDodgeCooldown = false end)
+	local cf = bestDodgeCF(myHRP, fromPos, (dist or 0) + 14)
+	if cf then myHRP.CFrame = cf end
+	task.delay(0.4, function() autoDodgeCooldown = false end)
 end
 
 -- Line-of-sight check: can the sheriff see us? --------------------------------
