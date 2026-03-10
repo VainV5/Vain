@@ -584,46 +584,58 @@ local function flingPlayer(target)
 	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not tHRP then return end
 
-	-- Place ourselves on the target
+	if setsimulationradius then pcall(setsimulationradius, math.huge) end
+
 	myHRP.CFrame = tHRP.CFrame
 
 	local running = true
+	local movel   = 0.1
 
 	task.spawn(function()
 		while running do
-			-- ── Stepped fires BEFORE physics simulation ────────────────────
-			-- Set the huge velocity here so the physics step actually sees it
-			-- and resolves the overlap with that impulse, pushing the target.
-			runService.Stepped:Wait()
+			-- Original touch-fling timing: Heartbeat → RenderStepped → Stepped
+			runService.Heartbeat:Wait()
 			local hrp = getHRP()
 			if not hrp then break end
 			local curTHRP = target.Character
 				and target.Character:FindFirstChild('HumanoidRootPart')
 			if not curTHRP then break end
 
-			-- TP into the target right before physics runs
+			-- Stay overlapping the target every frame
 			hrp.CFrame = curTHRP.CFrame
 
-			-- Build a fling vector: combine target's movement + random kick
-			-- so it works regardless of whether they're still or sprinting
-			local tv  = curTHRP.Velocity
-			local kick = Vector3.new(math.random(-5,5), 1, math.random(-5,5))
-			local base = tv.Magnitude > 1 and tv or kick
-			hrp.Velocity = base * 10000 + Vector3.new(0, 10000, 0)
+			-- Base velocity: target's own movement so it works while they move
+			local tv   = curTHRP.Velocity
+			local base = tv.Magnitude > 1
+				and tv
+				or Vector3.new(math.random(-5, 5), 1, math.random(-5, 5))
+			local fv = base * 10000 + Vector3.new(0, 10000, 0)
 
-			-- ── Heartbeat fires AFTER physics simulation ───────────────────
-			-- Restore our velocity so we don't fly away; the target already
-			-- received the impulse from the resolved collision above.
-			runService.Heartbeat:Wait()
+			-- Apply to our own HRP (we always own this — replicates)
+			hrp.Velocity = fv
+			-- Also try directly on the target (works when setsimulationradius grants ownership)
+			pcall(function() curTHRP.Velocity = fv end)
+
+			runService.RenderStepped:Wait()
 			hrp = getHRP()
-			if hrp then
-				hrp.Velocity = Vector3.new(0, 0, 0)
-			end
+			if hrp then hrp.Velocity = tv end
+			pcall(function() if curTHRP.Parent then curTHRP.Velocity = tv end end)
+
+			runService.Stepped:Wait()
+			hrp = getHRP()
+			if hrp then hrp.Velocity = tv + Vector3.new(0, movel, 0) end
+			pcall(function()
+				if curTHRP.Parent then
+					curTHRP.Velocity = tv + Vector3.new(0, movel, 0)
+				end
+			end)
+			movel = -movel
 		end
 	end)
 
 	task.delay(2, function()
 		running = false
+		if setsimulationradius then pcall(setsimulationradius, 1000) end
 		task.wait(0.05)
 		local hrp2 = getHRP()
 		if hrp2 then hrp2.CFrame = origin end
