@@ -561,41 +561,61 @@ local function flingPlayer(target)
 	local hum    = myChar and myChar:FindFirstChildOfClass('Humanoid')
 	local origin = myHRP.CFrame
 
-	-- Claim network ownership of everything nearby so direct velocity writes
-	-- to the target's HRP replicate to the server.
 	if setsimulationradius then pcall(setsimulationradius, math.huge) end
 	if hum then hum.PlatformStand = true end
 
-	-- Slam into the target every frame for 1.5 s.
-	-- Each iteration: set a random high velocity on BOTH our HRP and the
-	-- target's HRP, then hard-TP into them so the server sees us overlapping
-	-- at that velocity — physics penetration resolution launches the target.
+	-- Attach a BodyAngularVelocity so our character spins wildly —
+	-- this adds rotational chaos on top of the linear velocity blasts.
+	local bav = Instance.new('BodyAngularVelocity')
+	bav.MaxTorque      = Vector3.new(1e9, 1e9, 1e9)
+	bav.AngularVelocity = Vector3.new(9000, 9000, 9000)
+	bav.Parent = myHRP
+
+	-- Run on Heartbeat (fires every physics step, ~240 Hz) instead of
+	-- task.wait() so we hit the target as many times per second as possible.
+	local conn
 	local t0 = tick()
-	while tick() - t0 < 1.5 do
+	conn = runService.Heartbeat:Connect(function()
+		if tick() - t0 > 2 then
+			conn:Disconnect()
+			return
+		end
+
 		local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-		if not tHRP then break end
+		if not tHRP then conn:Disconnect() return end
 		local hrp = getHRP()
-		if not hrp then break end
+		if not hrp then conn:Disconnect() return end
 
+		-- Massive random velocity — changes every physics step for maximum chaos
 		local vel = Vector3.new(
-			math.random(-900, 900),
-			math.random(400, 1400),
-			math.random(-900, 900)
+			math.random(-8000, 8000),
+			math.random(2000, 8000),
+			math.random(-8000, 8000)
 		)
-		-- Set velocity first so it is live at the moment of overlap
-		hrp.AssemblyLinearVelocity = vel
-		pcall(function() tHRP.AssemblyLinearVelocity = vel end)
-		-- TP directly on top of the target
+		local angVel = Vector3.new(
+			math.random(-9000, 9000),
+			math.random(-9000, 9000),
+			math.random(-9000, 9000)
+		)
+
+		hrp.AssemblyLinearVelocity  = vel
+		hrp.AssemblyAngularVelocity = angVel
+		pcall(function()
+			tHRP.AssemblyLinearVelocity  = vel
+			tHRP.AssemblyAngularVelocity = angVel
+		end)
 		hrp.CFrame = tHRP.CFrame
-		task.wait()
-	end
+	end)
 
-	if hum then hum.PlatformStand = false end
-	if setsimulationradius then pcall(setsimulationradius, 1000) end
-
-	task.wait(0.05)
-	local hrp2 = getHRP()
-	if hrp2 then hrp2.CFrame = origin end
+	-- Wait for the Heartbeat loop to finish, then clean up
+	task.delay(2.1, function()
+		pcall(bav.Destroy, bav)
+		if hum then hum.PlatformStand = false end
+		if setsimulationradius then pcall(setsimulationradius, 1000) end
+		task.wait(0.05)
+		local hrp2 = getHRP()
+		if hrp2 then hrp2.CFrame = origin end
+	end)
 end
 
 local flingMurderer
