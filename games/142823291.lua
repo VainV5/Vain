@@ -570,13 +570,12 @@ local autoGun = Combat:CreateModule({
 local _ = autoGun
 
 -- ── Combat — fling ────────────────────────────────────────────────────────────
--- Exact touch-fling logic from the reference script, applied to our own HRP
--- while we stay overlapping the target.  We own our own HRP so velocity writes
--- replicate; the server collision resolver then applies the impulse to the
--- target.  No weld, no tHRP writes — those fight the collision resolution.
+-- Touch-fling: teleport onto the target and run the exact velocity loop from
+-- the reference script (Heartbeat → multiply vel × 10000 → RenderStepped →
+-- reset → Stepped → oscillate).  Collision with our body at that velocity is
+-- what actually launches the target.
 local function flingPlayer(target)
 	if not target or not target.Character or target == lplr then return end
-
 	local myHRP = getHRP()
 	if not myHRP then return end
 	local origin = myHRP.CFrame
@@ -584,49 +583,38 @@ local function flingPlayer(target)
 	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not tHRP then return end
 
-	-- Claim network ownership so writes to the target's HRP replicate
-	if setsimulationradius then pcall(setsimulationradius, math.huge) end
-
-	-- Disable our humanoid so physics doesn't fight our velocity writes
-	local hum = getHum()
-	if hum then hum.PlatformStand = true end
-
 	task.spawn(function()
-		-- TP into the target and fire 50 raw velocity blasts with no yields.
-		-- No waiting for Heartbeat/Stepped — just hammer both HRPs as fast as
-		-- Lua can loop so at least some writes land during a physics step.
+		-- Stick on top of the target
 		myHRP.CFrame = tHRP.CFrame
 
-		for _ = 1, 50 do
-			local hrp = getHRP()
+		local movel = 0.1
+		for _ = 1, 8 do
+			runService.Heartbeat:Wait()
+
+			local hrp    = getHRP()
 			local curTHRP = target.Character
 				and target.Character:FindFirstChild('HumanoidRootPart')
 			if not hrp or not curTHRP then break end
 
-			local fv = Vector3.new(
-				math.random(-9999, 9999),
-				math.random(5000, 9999),
-				math.random(-9999, 9999)
-			)
-			hrp.CFrame                  = curTHRP.CFrame
-			hrp.AssemblyLinearVelocity  = fv
-			pcall(function()
-				curTHRP.AssemblyLinearVelocity  = fv
-				curTHRP.AssemblyAngularVelocity = Vector3.new(
-					math.random(-9999, 9999),
-					math.random(-9999, 9999),
-					math.random(-9999, 9999)
-				)
-			end)
+			-- Re-stick so we don't drift away between frames
+			hrp.CFrame = curTHRP.CFrame
+
+			-- Velocity blast (reference logic, verbatim)
+			local vel = hrp.Velocity
+			hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+			runService.RenderStepped:Wait()
+			hrp.Velocity = vel
+			runService.Stepped:Wait()
+			hrp.Velocity = vel + Vector3.new(0, movel, 0)
+			movel = -movel
 		end
 
-		-- Let the blast settle for one physics frame, then return home
-		runService.Heartbeat:Wait()
-		if hum then hum.PlatformStand = false end
-		if setsimulationradius then pcall(setsimulationradius, 1000) end
-		task.wait(0.05)
-		local hrp2 = getHRP()
-		if hrp2 then hrp2.CFrame = origin end
+		-- Return to where we were standing
+		task.wait(0.1)
+		local hrp = getHRP()
+		if hrp then
+			hrp.CFrame = origin
+		end
 	end)
 end
 
