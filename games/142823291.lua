@@ -61,6 +61,11 @@ local function buildESP(player)
 	if not hrp then return end
 
 	local role = playerRoles[player.Name]
+	if not role then
+		-- Role not yet known — remove any stale grey ESP and wait for PlayerDataChanged
+		removeESP(player)
+		return
+	end
 	local col  = roleColor(role)
 
 	local objs = espObjects[player]
@@ -481,15 +486,18 @@ local function flingPlayer(target)
 	if not target or not target.Character then return end
 	local hrp = target.Character:FindFirstChild('HumanoidRootPart')
 	if not hrp then return end
+	-- Pick a random outward direction so they always leave the map
+	local angle = math.random() * math.pi * 2
+	local lateral = 200000
 	local bv = Instance.new('BodyVelocity')
-	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 	bv.Velocity = Vector3.new(
-		math.random(-1, 1) * 5000,
-		8000,
-		math.random(-1, 1) * 5000
+		math.cos(angle) * lateral,
+		80000,
+		math.sin(angle) * lateral
 	)
 	bv.Parent = hrp
-	debrisService:AddItem(bv, 0.15)
+	debrisService:AddItem(bv, 0.12)
 end
 
 local flingMurderer
@@ -562,6 +570,134 @@ vain:Clean(playersService.PlayerRemoving:Connect(function(p)
 	end
 	flingPlayerDropdown:Change(getPlayerNames())
 end))
+
+-- ── Combat — aimbot / auto-shoot ─────────────────────────────────────────────
+local ClientServices = ReplicatedStorage:FindFirstChild('ClientServices')
+local WeaponService  = ClientServices and ClientServices:FindFirstChild('WeaponService')
+local GunFired       = WeaponService  and WeaponService:FindFirstChild('GunFired')
+
+local function getEquippedGun()
+	local char = lplr.Character
+	if not char then return end
+	for _, v in char:GetChildren() do
+		if v:IsA('Tool') and isGunObject(v) then return v end
+	end
+end
+
+local function getAnyGun()
+	local gun = getEquippedGun()
+	if gun then return gun end
+	local backpack = lplr:FindFirstChild('Backpack')
+	if not backpack then return end
+	for _, v in backpack:GetChildren() do
+		if v:IsA('Tool') and isGunObject(v) then return v end
+	end
+end
+
+local function equipGun(gun)
+	local char = lplr.Character
+	if not char or not gun then return false end
+	if gun.Parent == char then return true end -- already equipped
+	local hum = char:FindFirstChildOfClass('Humanoid')
+	if not hum then return false end
+	hum:EquipTool(gun)
+	task.wait(0.12)
+	return gun.Parent == char
+end
+
+-- Aim camera + character at a world position
+local function aimAt(pos)
+	local myHRP = getHRP()
+	if not myHRP then return end
+	-- Rotate character to face target (horizontal only so movement isn't affected)
+	myHRP.CFrame = CFrame.new(myHRP.Position, Vector3.new(pos.X, myHRP.Position.Y, pos.Z))
+	-- Tilt camera to look exactly at target (handles vertical offset)
+	local cam = workspace.CurrentCamera
+	cam.CFrame = CFrame.new(cam.CFrame.Position, pos)
+end
+
+-- Fire the gun at a target HumanoidRootPart position
+local function fireAt(targetHRP)
+	local gun = getAnyGun()
+	if not gun then
+		vain:CreateNotification('Vain', 'No sheriff gun in inventory', 3, 'alert')
+		return false
+	end
+	if not equipGun(gun) then return false end
+
+	local hitPos = targetHRP.Position
+	aimAt(hitPos)
+
+	-- Primary: fire WeaponService.GunFired directly (skips client raycast)
+	if GunFired then
+		pcall(GunFired.FireServer, GunFired, hitPos)
+		return true
+	end
+
+	-- Fallback: search for any RemoteEvent/RemoteFunction inside the tool
+	for _, v in gun:GetDescendants() do
+		if v:IsA('RemoteEvent') then
+			pcall(v.FireServer, v, hitPos)
+			return true
+		elseif v:IsA('RemoteFunction') then
+			pcall(v.InvokeServer, v, hitPos)
+			return true
+		end
+	end
+
+	-- Last resort: tool activation (client-only, may not register on server)
+	pcall(function()
+		gun:Activate()
+	end)
+	return true
+end
+
+-- One-shot: aim + shoot murderer once
+local shootMurderer
+shootMurderer = Combat:CreateModule({
+	Name = 'Shoot Murderer',
+	Notification = false,
+	Bind = {},
+	Function = function(enabled)
+		if not enabled then return end
+		local target = findByRole('Murderer')
+		if target and target.Character then
+			local hrp = target.Character:FindFirstChild('HumanoidRootPart')
+			if hrp then
+				fireAt(hrp)
+			end
+		else
+			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
+		end
+		oneShot(shootMurderer)
+	end,
+})
+
+-- Toggled: automatically shoot murderer on a heartbeat loop
+local autoShootConn
+local autoShoot = Combat:CreateModule({
+	Name = 'Auto Shoot',
+	Bind = {},
+	Function = function(enabled)
+		if enabled then
+			autoShootConn = runService.Heartbeat:Connect(function()
+				local target = findByRole('Murderer')
+				if not target or not target.Character then return end
+				local hrp = target.Character:FindFirstChild('HumanoidRootPart')
+				if not hrp then return end
+				-- Only fire if we have the gun
+				if not getAnyGun() then return end
+				fireAt(hrp)
+			end)
+		else
+			if autoShootConn then
+				autoShootConn:Disconnect()
+				autoShootConn = nil
+			end
+		end
+	end,
+})
+local __ = autoShoot -- suppress unused warning
 
 -- ── Utility — click teleport ──────────────────────────────────────────────────
 local Utility      = vain.Categories.Utility
