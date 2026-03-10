@@ -577,17 +577,26 @@ local flingActive = false
 
 local function runFlingLoop(getTarget)
 	local movel = 0.1
+
 	while flingActive do
 		runService.Heartbeat:Wait()
 
-		local c   = lplr.Character
-		local hrp = c and c:FindFirstChild('HumanoidRootPart')
-		if not hrp then continue end
+		local char = lplr.Character
+		local hrp  = char and char:FindFirstChild('HumanoidRootPart')
+		local hum  = char and char:FindFirstChildOfClass('Humanoid')
+		if not hrp or not hum then continue end
 
-		local target  = getTarget()
-		local tChar   = target and target.Character
-		local tHRP    = tChar and tChar:FindFirstChild('HumanoidRootPart')
+		local target = getTarget()
+		local tChar  = target and target.Character
+		local tHRP   = tChar and tChar:FindFirstChild('HumanoidRootPart')
 		if not tHRP then continue end
+
+		-- Prevent self-death: PlatformStand disables fall-damage state machine
+		hum.PlatformStand = true
+		-- Restore health each frame as a safeguard
+		if hum.Health < hum.MaxHealth then
+			hum.Health = hum.MaxHealth
+		end
 
 		-- Stay glued to target
 		hrp.CFrame = tHRP.CFrame
@@ -600,6 +609,15 @@ local function runFlingLoop(getTarget)
 		runService.Stepped:Wait()
 		hrp.Velocity = vel + Vector3.new(0, movel, 0)
 		movel = -movel
+	end
+
+	-- Restore normal humanoid state when toggled off
+	local char = lplr.Character
+	if char then
+		local hum = char:FindFirstChildOfClass('Humanoid')
+		if hum then
+			hum.PlatformStand = false
+		end
 	end
 end
 
