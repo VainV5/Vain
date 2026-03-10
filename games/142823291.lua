@@ -587,14 +587,6 @@ local function flingPlayer(target)
 	-- Place ourselves on the target
 	myHRP.CFrame = tHRP.CFrame
 
-	-- Seed a non-zero velocity with a random horizontal component so the
-	-- first ×10000 multiply fires in all directions, not just vertically
-	myHRP.Velocity = Vector3.new(
-		math.random(-5, 5),
-		1,
-		math.random(-5, 5)
-	)
-
 	local running = true
 	local movel   = 0.1
 
@@ -607,8 +599,18 @@ local function flingPlayer(target)
 				and target.Character:FindFirstChild('HumanoidRootPart')
 			if not curTHRP then break end
 
+			-- Stay on top of the target
 			hrp.CFrame = curTHRP.CFrame
-			local vel  = hrp.Velocity
+
+			-- Use the TARGET's velocity as the base — when they're moving this
+			-- is already non-zero, so ×10000 immediately produces a massive
+			-- impulse regardless of whether they're still or running.
+			local vel = curTHRP.Velocity
+			-- If target is barely moving, inject a random horizontal kick
+			-- so the multiply never fires with a near-zero base.
+			if vel.Magnitude < 1 then
+				vel = Vector3.new(math.random(-5, 5), 1, math.random(-5, 5))
+			end
 			hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
 
 			runService.RenderStepped:Wait()
