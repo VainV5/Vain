@@ -546,158 +546,166 @@ local autoGun = Combat:CreateModule({
 })
 local _ = autoGun
 
--- ── Combat — fling ────────────────────────────────────────────────────────────
--- Fling by spinning our own character rapidly while overlapping the target.
--- This uses physics-driven collision: our HRP spins at high angular velocity,
--- which transfers momentum to the target through the physics engine.
-local Debris = cloneref(game:GetService('Debris'))
+-- ── Combat — Kill (Teddy Bear) ────────────────────────────────────────────────
+-- Kills a player by teleporting into them with the Teddy Bear equipped, then
+-- jumping to the void.  Requires the local player to own the Teddy Bear toy.
+local ReplicateToy = ExtrasRemotes and ExtrasRemotes:FindFirstChild('ReplicateToy')
 
-local function flingPlayer(target)
+local function hasTeddy()
+	local bp   = lplr:FindFirstChild('Backpack')
+	if not bp then return false end
+	-- Already sitting in backpack as a ready tool
+	if bp:FindFirstChild('Teddy') then return true end
+	-- In the Toys sub-folder (owned but not yet replicated)
+	local toys = bp:FindFirstChild('Toys')
+	if toys and toys:FindFirstChild('Teddy') then return true end
+	-- Currently equipped on the character
+	local char = lplr.Character
+	if char and char:FindFirstChild('Teddy') then return true end
+	return false
+end
+
+local function getTeddyTool()
+	-- Return a tool instance ready to be parented to the backpack.
+	local bp = lplr:FindFirstChild('Backpack')
+	if bp then
+		local t = bp:FindFirstChild('Teddy')
+		if t then return t end
+	end
+	local char = lplr.Character
+	if char then
+		local t = char:FindFirstChild('Teddy')
+		if t then return t end
+	end
+	-- Not in backpack yet — ask the server to replicate it
+	if ReplicateToy then
+		local ok, result = pcall(ReplicateToy.InvokeServer, ReplicateToy, 'Teddy')
+		if ok and result and result:IsA('Tool') then return result end
+	end
+	return nil
+end
+
+local function killPlayer(target)
 	if not target or not target.Character or target == lplr then return end
 
-	local myHRP = getHRP()
-	if not myHRP then return end
-	local myChar = lplr.Character
-	local hum    = myChar and myChar:FindFirstChildOfClass('Humanoid')
-	local origin = myHRP.CFrame
-
-	if setsimulationradius then pcall(setsimulationradius, math.huge) end
-	if hum then hum.PlatformStand = true end
-
-	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
-	if not tHRP then
-		if hum then hum.PlatformStand = false end
+	if not hasTeddy() then
+		vain:CreateNotification('Vain', 'You do not own the Teddy Bear toy', 4, 'alert')
 		return
 	end
 
-	-- Weld our HRP to the target's HRP so we stay fused to them for the
-	-- entire fling duration — every force we apply is shared by both bodies.
+	local myHRP = getHRP()
+	if not myHRP then return end
+	local origin = myHRP.CFrame
+	local hum    = getHum()
+
+	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
+	if not tHRP then return end
+
+	-- 1. Get / replicate the teddy tool
+	local teddy = getTeddyTool()
+	if not teddy then
+		vain:CreateNotification('Vain', 'Could not retrieve Teddy Bear', 4, 'alert')
+		return
+	end
+
+	-- 2. Move teddy to backpack so EquipTool can pick it up
+	local bp = lplr:FindFirstChildOfClass('Backpack') or lplr:FindFirstChild('Backpack')
+	teddy.Parent = bp
+	task.wait(0.05)
+
+	-- 3. Teleport directly into the target
 	myHRP.CFrame = tHRP.CFrame
-	local weld = Instance.new('WeldConstraint')
-	weld.Part0 = myHRP
-	weld.Part1 = tHRP
-	weld.Parent = myHRP
 
-	-- BodyAngularVelocity spins the fused pair at insane angular velocity
-	local bav = Instance.new('BodyAngularVelocity')
-	bav.MaxTorque       = Vector3.new(1e9, 1e9, 1e9)
-	bav.AngularVelocity = Vector3.new(9000, 9000, 9000)
-	bav.Parent = myHRP
+	-- 4. Equip the teddy (it is now overlapping the target's character)
+	if hum then hum:EquipTool(teddy) end
+	task.wait(0.08)
 
-	-- Heartbeat loop: blast random linear + angular velocity on both HRPs
-	-- every physics step (~240 Hz) for maximum chaos.
-	local conn
-	local t0 = tick()
-	conn = runService.Heartbeat:Connect(function()
-		if tick() - t0 > 2 then conn:Disconnect() return end
+	-- 5. Jump to the void — drags the equipped tool hitbox with us
+	myHRP.CFrame = CFrame.new(0, -9999, 0)
+	task.wait(0.1)
 
-		local hrp = getHRP()
-		if not hrp or not tHRP.Parent then conn:Disconnect() return end
+	-- 6. Unequip
+	if hum then hum:UnequipTools() end
 
-		local vel = Vector3.new(
-			math.random(-8000, 8000),
-			math.random(2000, 8000),
-			math.random(-8000, 8000)
-		)
-		local angVel = Vector3.new(
-			math.random(-9000, 9000),
-			math.random(-9000, 9000),
-			math.random(-9000, 9000)
-		)
-
-		hrp.AssemblyLinearVelocity  = vel
-		hrp.AssemblyAngularVelocity = angVel
-		pcall(function()
-			tHRP.AssemblyLinearVelocity  = vel
-			tHRP.AssemblyAngularVelocity = angVel
-		end)
-	end)
-
-	task.delay(2.1, function()
-		conn:Disconnect()
-		pcall(weld.Destroy, weld)
-		pcall(bav.Destroy,  bav)
-		if hum then hum.PlatformStand = false end
-		if setsimulationradius then pcall(setsimulationradius, 1000) end
-		task.wait(0.05)
-		local hrp2 = getHRP()
-		if hrp2 then hrp2.CFrame = origin end
-	end)
+	-- 7. Return home
+	task.wait(0.1)
+	local hrp2 = getHRP()
+	if hrp2 then hrp2.CFrame = origin end
 end
 
-local flingMurderer
-flingMurderer = Combat:CreateModule({
-	Name = 'Fling Murderer',
-	Tooltip  = 'One-shot: launches the murderer with extreme velocity',
+local killMurderer
+killMurderer = Combat:CreateModule({
+	Name = 'Kill Murderer',
+	Tooltip  = 'One-shot: kills the murderer using the Teddy Bear (requires ownership)',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
 		local target = findByRole('Murderer')
 		if target then
-			flingPlayer(target)
+			task.spawn(killPlayer, target)
 		else
 			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
 		end
-		oneShot(flingMurderer)
+		oneShot(killMurderer)
 	end,
 })
 
-local flingSheriff
-flingSheriff = Combat:CreateModule({
-	Name = 'Fling Sheriff',
-	Tooltip  = 'One-shot: launches the sheriff with extreme velocity',
+local killSheriff
+killSheriff = Combat:CreateModule({
+	Name = 'Kill Sheriff',
+	Tooltip  = 'One-shot: kills the sheriff using the Teddy Bear (requires ownership)',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
 		local target = findByRole('Sheriff')
 		if target then
-			flingPlayer(target)
+			task.spawn(killPlayer, target)
 		else
 			vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
 		end
-		oneShot(flingSheriff)
+		oneShot(killSheriff)
 	end,
 })
 
-local flingPlayerTarget = ''
-local flingPlayerModule
-local flingPlayerDropdown
-flingPlayerModule = Combat:CreateModule({
-	Name = 'Fling Player',
-	Tooltip  = 'One-shot: launches the selected player with extreme velocity',
+local killPlayerTarget = ''
+local killPlayerModule
+local killPlayerDropdown
+killPlayerModule = Combat:CreateModule({
+	Name = 'Kill Player',
+	Tooltip  = 'One-shot: kills the selected player using the Teddy Bear (requires ownership)',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
-		local target = flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
+		local target = killPlayerTarget ~= '' and playersService:FindFirstChild(killPlayerTarget)
 		if target then
-			flingPlayer(target)
+			task.spawn(killPlayer, target)
 		else
 			vain:CreateNotification('Vain', 'Select a player first', 3, 'alert')
 		end
-		oneShot(flingPlayerModule)
+		oneShot(killPlayerModule)
 	end,
 })
 
-flingPlayerDropdown = flingPlayerModule:CreateDropdown({
+killPlayerDropdown = killPlayerModule:CreateDropdown({
 	Name     = 'Player',
-	Tooltip  = 'Select which player to target',
+	Tooltip  = 'Select which player to kill',
 	List     = getPlayerNames(),
 	Function = function(val)
-		flingPlayerTarget = val or ''
+		killPlayerTarget = val or ''
 	end,
 })
 
 vain:Clean(playersService.PlayerAdded:Connect(function()
-	flingPlayerDropdown:Change(getPlayerNames())
+	killPlayerDropdown:Change(getPlayerNames())
 end))
 vain:Clean(playersService.PlayerRemoving:Connect(function(p)
-	if flingPlayerTarget == p.Name then
-		flingPlayerTarget = ''
+	if killPlayerTarget == p.Name then
+		killPlayerTarget = ''
 	end
-	flingPlayerDropdown:Change(getPlayerNames())
+	killPlayerDropdown:Change(getPlayerNames())
 end))
 
 -- ── Combat — aimbot / auto-shoot ─────────────────────────────────────────────
@@ -1834,7 +1842,7 @@ local killAura = Combat:CreateModule({
 					if (myHRP.Position - tHRP.Position).Magnitude > killAuraRadius then continue end
 					if (killAuraCooldowns[p] or 0) + 1.8 > now then continue end
 					killAuraCooldowns[p] = now
-					task.spawn(flingPlayer, p)
+					task.spawn(killPlayer, p)
 				end
 			end)
 		else
@@ -1856,15 +1864,15 @@ killAura:CreateSlider({
 end
 
 do
--- ── Combat — Auto Fling Murderer ──────────────────────────────────────────────
--- Toggled: whenever the murderer enters the radius, flings them automatically.
+-- ── Combat — Auto Kill Murderer ───────────────────────────────────────────────
+-- Toggled: whenever the murderer enters the radius, kills them automatically.
 local autoFlingRadius   = 25
 local autoFlingCooldown = false
 local autoFlingConn
 
 local autoFlingMurdererModule = Combat:CreateModule({
-	Name = 'Auto Fling Murderer',
-	Tooltip  = 'Continuously flings the murderer whenever they are within range',
+	Name = 'Auto Kill Murderer',
+	Tooltip  = 'Automatically kills the murderer using Teddy Bear whenever they enter range',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1878,7 +1886,7 @@ local autoFlingMurdererModule = Combat:CreateModule({
 				if not mHRP then return end
 				if (myHRP.Position - mHRP.Position).Magnitude > autoFlingRadius then return end
 				autoFlingCooldown = true
-				task.spawn(flingPlayer, murderer)
+				task.spawn(killPlayer, murderer)
 				task.delay(1.8, function() autoFlingCooldown = false end)
 			end)
 		else
