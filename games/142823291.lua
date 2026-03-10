@@ -206,6 +206,7 @@ local Render = vain.Categories.Render
 
 local esp = Render:CreateModule({
 	Name = 'Player ESP',
+	Tooltip  = 'Draws colored highlights and name tags on all players through walls',
 	Bind = {},
 	Function = function(enabled)
 		espEnabled = enabled
@@ -304,6 +305,7 @@ local Combat = vain.Categories.Combat
 local tpMurderer
 tpMurderer = Combat:CreateModule({
 	Name = 'Teleport to Murderer',
+	Tooltip  = 'One-shot: teleports you directly onto the murderer',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -321,6 +323,7 @@ tpMurderer = Combat:CreateModule({
 local tpSheriff
 tpSheriff = Combat:CreateModule({
 	Name = 'Teleport to Sheriff',
+	Tooltip  = 'One-shot: teleports you directly onto the sheriff',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -351,6 +354,7 @@ local tpPlayer
 local tpPlayerDropdown
 tpPlayer = Combat:CreateModule({
 	Name = 'Teleport to Player',
+	Tooltip  = 'One-shot: teleports you to the selected player',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -367,6 +371,7 @@ tpPlayer = Combat:CreateModule({
 
 tpPlayerDropdown = tpPlayer:CreateDropdown({
 	Name     = 'Player',
+	Tooltip  = 'Select which player to target',
 	List     = getPlayerNames(),
 	Function = function(val)
 		tpPlayerTarget = val or ''
@@ -471,6 +476,7 @@ end
 local tpGun
 tpGun = Combat:CreateModule({
 	Name = 'Teleport to Gun',
+	Tooltip  = 'One-shot: teleports you to the dropped sheriff gun',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -488,6 +494,7 @@ tpGun = Combat:CreateModule({
 local autoGunConns = {}
 local autoGun = Combat:CreateModule({
 	Name = 'Auto Teleport to Gun',
+	Tooltip  = 'Watches for a dropped gun and teleports to it automatically',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -569,6 +576,7 @@ end
 local flingMurderer
 flingMurderer = Combat:CreateModule({
 	Name = 'Fling Murderer',
+	Tooltip  = 'One-shot: launches the murderer with extreme velocity',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -586,6 +594,7 @@ flingMurderer = Combat:CreateModule({
 local flingSheriff
 flingSheriff = Combat:CreateModule({
 	Name = 'Fling Sheriff',
+	Tooltip  = 'One-shot: launches the sheriff with extreme velocity',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -605,6 +614,7 @@ local flingPlayerModule
 local flingPlayerDropdown
 flingPlayerModule = Combat:CreateModule({
 	Name = 'Fling Player',
+	Tooltip  = 'One-shot: launches the selected player with extreme velocity',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -621,6 +631,7 @@ flingPlayerModule = Combat:CreateModule({
 
 flingPlayerDropdown = flingPlayerModule:CreateDropdown({
 	Name     = 'Player',
+	Tooltip  = 'Select which player to target',
 	List     = getPlayerNames(),
 	Function = function(val)
 		flingPlayerTarget = val or ''
@@ -722,6 +733,7 @@ end
 local shootMurderer
 shootMurderer = Combat:CreateModule({
 	Name = 'Shoot Murderer',
+	Tooltip  = 'One-shot: fires your gun directly at the murderer',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -743,6 +755,7 @@ shootMurderer = Combat:CreateModule({
 local autoShootConn
 local autoShoot = Combat:CreateModule({
 	Name = 'Auto Shoot',
+	Tooltip  = 'Continuously aims and fires at the murderer each frame',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -773,6 +786,7 @@ local clickTPConn
 local clickTP
 clickTP = Utility:CreateModule({
 	Name = 'Click Teleport',
+	Tooltip  = 'Click anywhere on the ground to instantly teleport there',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -803,6 +817,7 @@ clickTP = Utility:CreateModule({
 
 clickTP:CreateToggle({
 	Name = 'Require Ctrl',
+	Tooltip  = 'Only click-teleport when Left Ctrl is held',
 	Default = true,
 	Function = function(enabled)
 		requireCtrl = enabled
@@ -815,6 +830,7 @@ local World = vain.Categories.World
 local tpMap
 tpMap = World:CreateModule({
 	Name = 'Teleport to Map',
+	Tooltip  = 'Teleports you to the center of the current round map',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -858,6 +874,7 @@ tpMap = World:CreateModule({
 local tpLobby
 tpLobby = World:CreateModule({
 	Name = 'Teleport to Lobby',
+	Tooltip  = 'Teleports you to the lobby waiting area',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -896,6 +913,7 @@ local Blatant = vain.Categories.Blatant
 local noclipConn
 local noclip = Blatant:CreateModule({
 	Name = 'Noclip',
+	Tooltip  = 'Walk through all walls and geometry freely',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -928,6 +946,7 @@ end
 
 local fly = Blatant:CreateModule({
 	Name = 'Fly',
+	Tooltip  = 'Float and fly with WASD + Space/Shift to change altitude',
 	Bind = {},
 	Function = function(enabled)
 		local char = lplr.Character
@@ -1037,6 +1056,7 @@ local autoFarmRunning = false
 
 local autoFarmModule = Utility:CreateModule({
 	Name = 'Auto Farm Coins',
+	Tooltip  = 'Step-teleports toward the nearest coin to trigger collection',
 	Bind = {},
 	Function = function(enabled)
 		autoFarmRunning = enabled
@@ -1070,6 +1090,7 @@ local autoFarmModule = Utility:CreateModule({
 
 autoFarmModule:CreateSlider({
 	Name    = 'Step Size (studs)',
+	Tooltip  = 'Studs moved toward the target per teleport step',
 	Min     = 1,
 	Max     = 30,
 	Default = 6,
@@ -1078,6 +1099,7 @@ autoFarmModule:CreateSlider({
 
 autoFarmModule:CreateSlider({
 	Name    = 'Step Interval (ms)',
+	Tooltip  = 'Milliseconds to wait between each teleport step',
 	Min     = 20,
 	Max     = 500,
 	Default = 80,
@@ -1096,6 +1118,7 @@ local lastMurdererPos  = nil
 
 local antiKnife = Combat:CreateModule({
 	Name = 'Anti-Knife',
+	Tooltip  = 'Teleports you away when the murderer is closing in to stab',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1141,6 +1164,7 @@ local antiKnife = Combat:CreateModule({
 
 antiKnife:CreateSlider({
 	Name    = 'Dodge Radius (studs)',
+	Tooltip  = 'Murderer must be closer than this to trigger a dodge',
 	Min     = 5,
 	Max     = 50,
 	Default = 18,
@@ -1202,6 +1226,7 @@ end
 
 local proxAlert = Combat:CreateModule({
 	Name = 'Proximity Alert',
+	Tooltip  = 'Flashes the screen red and beeps when the murderer is nearby',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1224,6 +1249,7 @@ local proxAlert = Combat:CreateModule({
 
 proxAlert:CreateSlider({
 	Name    = 'Alert Radius (studs)',
+	Tooltip  = 'Murderer must be within this range to trigger the alert',
 	Min     = 5,
 	Max     = 80,
 	Default = 25,
@@ -1239,6 +1265,7 @@ do
 local autoHeroConns = {}
 local autoHeroModule = Combat:CreateModule({
 	Name = 'Auto Hero',
+	Tooltip  = 'Automatically grabs the gun when the sheriff dies',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1329,6 +1356,7 @@ local gunEspEnabled = false
 
 local gunEspModule = Combat:CreateModule({
 	Name = 'Gun ESP',
+	Tooltip  = 'Highlights the dropped sheriff gun through walls with a label',
 	Bind = {},
 	Function = function(enabled)
 		gunEspEnabled = enabled
@@ -1376,6 +1404,7 @@ end
 
 local roleAnnouncerModule = Render:CreateModule({
 	Name = 'Role Announcer',
+	Tooltip  = 'Shows a notification listing all player roles at round start',
 	Bind = {},
 	Function = function(enabled)
 		roleAnnouncerEnabled = enabled
@@ -1429,6 +1458,7 @@ local trailConn
 
 local murdererTrail = Render:CreateModule({
 	Name = 'Murderer Trail',
+	Tooltip  = 'On-screen arrow that always points toward the murderer',
 	Bind = {},
 	Function = function(enabled)
 		trailArrow.Visible  = false
@@ -1509,6 +1539,7 @@ end
 
 savePositionModule = Utility:CreateModule({
 	Name  = 'Save Position',
+	Tooltip  = 'Saves your current world position to the teleport history',
 	Notification = false,
 	Bind  = {},
 	Function = function(enabled)
@@ -1520,6 +1551,7 @@ savePositionModule = Utility:CreateModule({
 
 tpBackModule = Utility:CreateModule({
 	Name  = 'Teleport Back',
+	Tooltip  = 'Teleports you to the most recently saved position',
 	Notification = false,
 	Bind  = {},
 	Function = function(enabled)
@@ -1541,6 +1573,7 @@ do
 -- ── Blatant — Walkspeed & Jumppower ──────────────────────────────────────────
 local wsModule = Blatant:CreateModule({
 	Name = 'Custom Stats',
+	Tooltip  = 'Override your character WalkSpeed and JumpPower',
 	Bind = {},
 	Function = function(enabled)
 		local hum = getHum()
@@ -1556,6 +1589,7 @@ local wsModule = Blatant:CreateModule({
 
 wsModule:CreateSlider({
 	Name    = 'Walk Speed',
+	Tooltip  = 'Character movement speed (default 16)',
 	Min     = 0,
 	Max     = 200,
 	Default = 16,
@@ -1567,6 +1601,7 @@ wsModule:CreateSlider({
 
 wsModule:CreateSlider({
 	Name    = 'Jump Power',
+	Tooltip  = 'Character jump force (default 50)',
 	Min     = 0,
 	Max     = 200,
 	Default = 50,
@@ -1594,6 +1629,7 @@ local origLighting  = nil
 
 local fullbright = Blatant:CreateModule({
 	Name = 'Fullbright',
+	Tooltip  = 'Maximises lighting brightness so every area is fully lit',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1634,6 +1670,7 @@ local spinConn
 
 local spinBot = Blatant:CreateModule({
 	Name = 'Spin Bot',
+	Tooltip  = 'Rotates your character continuously to disorient others',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1650,6 +1687,7 @@ local spinBot = Blatant:CreateModule({
 
 spinBot:CreateSlider({
 	Name    = 'Rotations / sec',
+	Tooltip  = 'Full spins your character makes per second',
 	Min     = 1,
 	Max     = 50,
 	Default = 10,
@@ -1667,6 +1705,7 @@ local fakeLagConn
 
 local fakeLag = Blatant:CreateModule({
 	Name = 'Fake Lag',
+	Tooltip  = 'Jitters your position locally to simulate high latency',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1688,6 +1727,7 @@ local fakeLag = Blatant:CreateModule({
 
 fakeLag:CreateSlider({
 	Name    = 'Jitter Radius (studs)',
+	Tooltip  = 'Max studs your position is randomly offset each frame',
 	Min     = 1,
 	Max     = 20,
 	Default = 4,
@@ -1706,6 +1746,7 @@ local killAuraCooldowns = {}  -- [player] = last fling time
 
 local killAura = Combat:CreateModule({
 	Name = 'Kill Aura',
+	Tooltip  = 'Automatically shoots all players within the aura radius',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1733,6 +1774,7 @@ local killAura = Combat:CreateModule({
 
 killAura:CreateSlider({
 	Name    = 'Aura Radius (studs)',
+	Tooltip  = 'Auto-shoot range in studs',
 	Min     = 5,
 	Max     = 60,
 	Default = 20,
@@ -1750,6 +1792,7 @@ local autoFlingConn
 
 local autoFlingMurdererModule = Combat:CreateModule({
 	Name = 'Auto Fling Murderer',
+	Tooltip  = 'Continuously flings the murderer whenever they are within range',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1775,6 +1818,7 @@ local autoFlingMurdererModule = Combat:CreateModule({
 
 autoFlingMurdererModule:CreateSlider({
 	Name    = 'Fling Radius (studs)',
+	Tooltip  = 'Begin flinging the murderer when within this range',
 	Min     = 5,
 	Max     = 60,
 	Default = 25,
@@ -1794,6 +1838,7 @@ local baitRunning      = false
 
 local murdererBaitModule = Combat:CreateModule({
 	Name = 'Murderer Bait',
+	Tooltip  = 'Orbits around the murderer to draw them toward you',
 	Bind = {},
 	Function = function(enabled)
 		baitRunning = enabled
@@ -1840,6 +1885,7 @@ local murdererBaitModule = Combat:CreateModule({
 
 murdererBaitModule:CreateSlider({
 	Name    = 'Step Size (studs)',
+	Tooltip  = 'Studs moved toward the target per teleport step',
 	Min     = 1,
 	Max     = 20,
 	Default = 8,
@@ -1848,6 +1894,7 @@ murdererBaitModule:CreateSlider({
 
 murdererBaitModule:CreateSlider({
 	Name    = 'Dodge Radius (studs)',
+	Tooltip  = 'Murderer must be closer than this to trigger a dodge',
 	Min     = 5,
 	Max     = 40,
 	Default = 14,
@@ -1865,6 +1912,7 @@ local origHRPSize  = nil
 
 local reachExtender = Combat:CreateModule({
 	Name = 'Reach Extender',
+	Tooltip  = 'Enlarges your HRP so you can interact from a greater distance',
 	Bind = {},
 	Function = function(enabled)
 		local hrp = getHRP()
@@ -1883,6 +1931,7 @@ local reachExtender = Combat:CreateModule({
 
 reachExtender:CreateSlider({
 	Name    = 'Reach Size',
+	Tooltip  = 'Side length of your enlarged HRP hitbox in studs',
 	Min     = 2,
 	Max     = 50,
 	Default = 12,
@@ -1905,6 +1954,7 @@ local infJumpConn
 
 local infJump = Utility:CreateModule({
 	Name = 'Infinite Jump',
+	Tooltip  = 'Lets you jump again at any time, even while airborne',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -1932,6 +1982,7 @@ local loopTpRunning  = false
 
 local loopTp = Utility:CreateModule({
 	Name = 'Loop Teleport',
+	Tooltip  = 'Cycles through your saved positions on a fixed interval',
 	Bind = {},
 	Function = function(enabled)
 		loopTpRunning = enabled
@@ -1959,6 +2010,7 @@ local loopTp = Utility:CreateModule({
 
 loopTp:CreateSlider({
 	Name    = 'Cycle Interval (ms)',
+	Tooltip  = 'Milliseconds between each loop-teleport hop',
 	Min     = 100,
 	Max     = 3000,
 	Default = 500,
@@ -1974,6 +2026,7 @@ local teleportService = cloneref(game:GetService('TeleportService'))
 local serverHop
 serverHop = Utility:CreateModule({
 	Name = 'Server Hop',
+	Tooltip  = 'Rejoins the same game in a fresh server instantly',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -1997,6 +2050,7 @@ local antiAfkRunning = false
 
 local antiAfk = Utility:CreateModule({
 	Name = 'Anti-AFK',
+	Tooltip  = 'Simulates input periodically to prevent an AFK kick',
 	Bind = {},
 	Function = function(enabled)
 		antiAfkRunning = enabled
@@ -2028,6 +2082,7 @@ local origGravity = workspace.Gravity
 
 local lowGravity = Blatant:CreateModule({
 	Name = 'Low Gravity',
+	Tooltip  = 'Lowers workspace gravity so you fall slower and jump higher',
 	Bind = {},
 	Function = function(enabled)
 		workspace.Gravity = enabled and 40 or origGravity
@@ -2036,6 +2091,7 @@ local lowGravity = Blatant:CreateModule({
 
 lowGravity:CreateSlider({
 	Name    = 'Gravity',
+	Tooltip  = 'Workspace gravity value (default approx 196)',
 	Min     = 1,
 	Max     = 196,
 	Default = 40,
@@ -2052,6 +2108,7 @@ local ghostOrigTransp = {}
 
 local ghostMode = Blatant:CreateModule({
 	Name = 'Ghost Mode',
+	Tooltip  = 'Renders your character nearly invisible',
 	Bind = {},
 	Function = function(enabled)
 		local char = lplr.Character
@@ -2093,6 +2150,7 @@ local rainbowEnabled = false
 
 local rainbowESP = Render:CreateModule({
 	Name = 'Rainbow ESP',
+	Tooltip  = 'Smoothly cycles ESP highlight colours through the rainbow',
 	Bind = {},
 	Function = function(enabled)
 		rainbowEnabled = enabled
@@ -2133,6 +2191,7 @@ local freezeDropdown
 
 freezePlayerModule = Combat:CreateModule({
 	Name = 'Freeze Player',
+	Tooltip  = 'Anchors the selected players character so they cannot move',
 	Bind = {},
 	Function = function(enabled)
 		if freezeConn then freezeConn:Disconnect(); freezeConn = nil end
@@ -2176,6 +2235,7 @@ freezePlayerModule = Combat:CreateModule({
 
 freezeDropdown = freezePlayerModule:CreateDropdown({
 	Name     = 'Player',
+	Tooltip  = 'Select which player to target',
 	List     = getPlayerNames(),
 	Function = function(val)
 		freezeTarget = val or ''
@@ -2204,6 +2264,7 @@ local autoRespawnConn
 
 local autoRespawn = Utility:CreateModule({
 	Name = 'Auto Respawn',
+	Tooltip  = 'Automatically respawns you the instant you die',
 	Bind = {},
 	Function = function(enabled)
 		if autoRespawnConn then autoRespawnConn:Disconnect(); autoRespawnConn = nil end
@@ -2257,6 +2318,7 @@ end
 
 local eggFarmModule = Utility:CreateModule({
 	Name = 'Egg Farm',
+	Tooltip  = 'Step-teleports toward the nearest egg to collect it',
 	Bind = {},
 	Function = function(enabled)
 		eggFarmRunning = enabled
@@ -2288,6 +2350,7 @@ local eggFarmModule = Utility:CreateModule({
 
 eggFarmModule:CreateSlider({
 	Name    = 'Step Size (studs)',
+	Tooltip  = 'Studs moved toward the target per teleport step',
 	Min     = 1,
 	Max     = 30,
 	Default = 6,
@@ -2296,6 +2359,7 @@ eggFarmModule:CreateSlider({
 
 eggFarmModule:CreateSlider({
 	Name    = 'Step Interval (ms)',
+	Tooltip  = 'Milliseconds to wait between each teleport step',
 	Min     = 20,
 	Max     = 500,
 	Default = 80,
@@ -2310,6 +2374,7 @@ do
 -- Works alongside Fullbright (they control separate properties).
 local todModule = Blatant:CreateModule({
 	Name = 'Time of Day',
+	Tooltip  = 'Overrides the in-game clock time (client-side only)',
 	Bind = {},
 	Function = function(enabled)
 		-- Toggle just records state; the slider drives the actual value
@@ -2355,6 +2420,7 @@ end
 
 local emoteSpam = Blatant:CreateModule({
 	Name = 'Emote Spam',
+	Tooltip  = 'Rapidly re-activates your equipped emote every frame',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
@@ -2387,6 +2453,7 @@ local SHADOW_OFFSET  = 5  -- studs behind the target
 local shadowTp
 shadowTp = Combat:CreateModule({
 	Name          = 'Shadow Teleport',
+	Tooltip  = 'One-shot: teleports you directly behind the selected player',
 	Notification  = false,
 	Bind          = {},
 	Function      = function(enabled)
@@ -2406,6 +2473,7 @@ shadowTp = Combat:CreateModule({
 
 local shadowDropdown = shadowTp:CreateDropdown({
 	Name     = 'Player',
+	Tooltip  = 'Select which player to target',
 	List     = getPlayerNames(),
 	Function = function(val) shadowTpTarget = val or '' end,
 })
@@ -2450,6 +2518,7 @@ end
 
 Combat:CreateModule({
 	Name = 'Auto Throw Knife',
+	Tooltip  = 'As the murderer, auto-aims and throws your knife at the nearest player',
 	Bind = {},
 	Function = function(enabled)
 		autoKnifeRunning = enabled
@@ -2486,6 +2555,7 @@ local FOLLOW_INTERVAL = 0.07
 
 local followModule = Utility:CreateModule({
 	Name = 'Follow Player',
+	Tooltip  = 'Continuously step-teleports behind the selected player',
 	Bind = {},
 	Function = function(enabled)
 		followRunning = enabled
@@ -2516,6 +2586,7 @@ local followModule = Utility:CreateModule({
 
 local followDropdown = followModule:CreateDropdown({
 	Name     = 'Player',
+	Tooltip  = 'Select which player to target',
 	List     = getPlayerNames(),
 	Function = function(val) followTarget = val or '' end,
 })
@@ -2530,6 +2601,7 @@ end))
 
 followModule:CreateSlider({
 	Name     = 'Follow Distance (studs)',
+	Tooltip  = 'Studs to keep behind the followed player',
 	Min      = 1,
 	Max      = 20,
 	Default  = 4,
@@ -2546,6 +2618,7 @@ local rapidFireRunning = false
 
 Combat:CreateModule({
 	Name = 'Rapid Fire',
+	Tooltip  = 'Spams the gun fire event every 50 ms, bypassing fire-rate limits',
 	Bind = {},
 	Function = function(enabled)
 		rapidFireRunning = enabled
@@ -2598,6 +2671,7 @@ end
 
 Combat:CreateModule({
 	Name = 'Knife Dodge',
+	Tooltip  = 'Sidesteps when a thrown knife tag appears within range',
 	Bind = {},
 	Function = function(enabled)
 		if knifeDodgeTagConn  then knifeDodgeTagConn:Disconnect();  knifeDodgeTagConn  = nil end
@@ -2645,6 +2719,7 @@ end
 local bulletImmConn
 Combat:CreateModule({
 	Name = 'Bullet Immunity',
+	Tooltip  = 'Tags your parts WeaponPassthrough so gun raycasts skip you',
 	Bind = {},
 	Function = function(enabled)
 		bulletImmuneActive = enabled
@@ -2676,6 +2751,7 @@ local stealthConn
 
 Combat:CreateModule({
 	Name = 'Stealth Mode',
+	Tooltip  = 'Fires the Stealth remote repeatedly to suppress your presence',
 	Bind = {},
 	Function = function(enabled)
 		stealthActive = enabled
@@ -2711,6 +2787,7 @@ local GameplayActivatePerk = GameplayRemotes and GameplayRemotes:FindFirstChild(
 local perkActive = false
 Combat:CreateModule({
 	Name = 'Perk Activator',
+	Tooltip  = 'Spams ActivatePerk to use your perk without cooldown',
 	Bind = {},
 	Function = function(enabled)
 		perkActive = enabled
@@ -2739,6 +2816,7 @@ local GameplayFakeGun = GameplayRemotes and GameplayRemotes:FindFirstChild('Fake
 local fakeGunActive = false
 Combat:CreateModule({
 	Name = 'Fake Gun',
+	Tooltip  = 'Fires FakeGun so other players see you holding a weapon',
 	Bind = {},
 	Function = function(enabled)
 		fakeGunActive = enabled
@@ -2777,6 +2855,7 @@ end
 
 Combat:CreateModule({
 	Name = 'Auto Trap',
+	Tooltip  = 'Places traps at the murderers feet every few seconds',
 	Bind = {},
 	Function = function(enabled)
 		autoTrapRunning = enabled
@@ -2944,6 +3023,7 @@ end
 -- Module ----------------------------------------------------------------------
 local autoDodgeModule = Combat:CreateModule({
 	Name = 'Auto Dodge',
+	Tooltip  = 'Dodges stabs, thrown knives, and incoming gunshots automatically',
 	Bind = {},
 	Function = function(enabled)
 		autoDodgeActive = enabled
@@ -2963,6 +3043,7 @@ local autoDodgeModule = Combat:CreateModule({
 
 autoDodgeModule:CreateSlider({
 	Name     = 'Stab Radius (studs)',
+	Tooltip  = 'Trigger stab dodge when murderer is within this distance',
 	Min      = 5,
 	Max      = 50,
 	Default  = 18,
@@ -2971,6 +3052,7 @@ autoDodgeModule:CreateSlider({
 
 autoDodgeModule:CreateSlider({
 	Name     = 'Shot LoS Range (studs)',
+	Tooltip  = 'Maximum range for the sheriff line-of-sight dodge check',
 	Min      = 20,
 	Max      = 150,
 	Default  = 60,
