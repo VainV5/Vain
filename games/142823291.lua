@@ -560,30 +560,46 @@ local function flingPlayer(target)
 	local hum    = myChar and myChar:FindFirstChildOfClass('Humanoid')
 	local origin = myHRP.CFrame
 
-	-- Take physics control of our character
-	if hum then hum.PlatformStand = true end
-
-	-- Spin our HRP at extreme angular velocity
-	local bav = Instance.new('BodyAngularVelocity')
-	bav.MaxTorque      = Vector3.new(1e9, 1e9, 1e9)
-	bav.AngularVelocity = Vector3.new(
-		math.random(-1, 1) * 5000, 9000, math.random(-1, 1) * 5000)
-	bav.Parent = myHRP
-
-	-- Continuously teleport into the target for 0.6 s.
-	-- Our spinning body overlaps theirs every frame; player collision
-	-- transfers the rotational momentum and launches them.
-	local t0 = tick()
-	while tick() - t0 < 0.6 do
-		local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
-		if not tHRP then break end
-		local hrp = getHRP()
-		if hrp then hrp.CFrame = tHRP.CFrame end
-		task.wait()
+	-- Expand simulation radius so the client claims network ownership of
+	-- nearby physics objects (including the target's HRP), letting us write
+	-- AssemblyLinearVelocity directly to it and have it replicate.
+	if setsimulationradius then
+		pcall(setsimulationradius, math.huge)
 	end
 
-	bav:Destroy()
+	if hum then hum.PlatformStand = true end
+
+	-- Teleport into the target
+	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
+	if not tHRP then
+		if hum then hum.PlatformStand = false end
+		return
+	end
+	myHRP.CFrame = tHRP.CFrame
+
+	-- Build the fling vector: strong upward + random horizontal
+	local flingVec = Vector3.new(
+		math.random(-400, 400),
+		900,
+		math.random(-400, 400)
+	)
+
+	-- Write velocity to ourselves (we always own our own HRP — replicates)
+	myHRP.AssemblyLinearVelocity = flingVec
+
+	-- Write velocity directly to target (works once setsimulationradius fired)
+	pcall(function()
+		tHRP.AssemblyLinearVelocity = flingVec
+	end)
+
+	task.wait(0.25)
+
 	if hum then hum.PlatformStand = false end
+
+	-- Restore default simulation radius
+	if setsimulationradius then
+		pcall(setsimulationradius, 1000)
+	end
 
 	-- Return home
 	task.wait(0.05)
