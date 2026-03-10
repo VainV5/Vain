@@ -159,6 +159,10 @@ if GameplayRemotes then
 			roundActive = true
 			table.clear(playerRoles)
 			if espEnabled then refreshAll() end
+			-- Roles are assigned shortly after RoundStart; fetch immediately
+			-- and again after a short delay once all assignments are done
+			fetchRoles()
+			task.delay(1, fetchRoles)
 		end))
 	end
 
@@ -168,20 +172,36 @@ if GameplayRemotes then
 			roundActive = false
 		end))
 	end
+
+	-- RoleSelect fires the moment our own role is assigned (first arg = role name)
+	-- Use it for instant self-role detection without waiting for the next poll
+	local rsel = GameplayRemotes:FindFirstChild('RoleSelect')
+	if rsel then
+		vain:Clean(rsel.OnClientEvent:Connect(function(roleName)
+			if type(roleName) == 'string' then
+				playerRoles[lplr.Name] = roleName
+			end
+			-- Also fetch everyone else's roles right away
+			fetchRoles()
+		end))
+	end
 end
 
--- Poll GetData2 every 2 s as a fallback (always runs; catches late-joins and
--- mid-round enables even when no PlayerDataChanged fires)
+-- Fetch all current player roles from the server
+local function fetchRoles()
+	if not GameplayRemotes then return end
+	local gcp = GameplayRemotes:FindFirstChild('GetCurrentPlayerData')
+	if not gcp then return end
+	local ok, data = pcall(gcp.InvokeServer, gcp)
+	if ok then applyPlayerData(data) end
+end
+
+-- Poll every 1 s so roles are always fresh (GetCurrentPlayerData returns
+-- the full {[name]={Role=...}} table — GetData2 only returns inventory)
 task.spawn(function()
 	while true do
-		task.wait(2)
-		if ExtrasRemotes then
-			local getdata = ExtrasRemotes:FindFirstChild('GetData2')
-			if getdata then
-				local ok, data = pcall(getdata.InvokeServer, getdata)
-				if ok then applyPlayerData(data) end
-			end
-		end
+		task.wait(1)
+		fetchRoles()
 	end
 end)
 
@@ -217,14 +237,7 @@ local esp = Render:CreateModule({
 	Function = function(enabled)
 		espEnabled = enabled
 		if enabled then
-			-- Immediately fetch roles so late-join / mid-round enable works
-			if ExtrasRemotes then
-				local getdata = ExtrasRemotes:FindFirstChild('GetData2')
-				if getdata then
-					local ok, data = pcall(getdata.InvokeServer, getdata)
-					if ok then applyPlayerData(data) end
-				end
-			end
+			fetchRoles()
 			refreshAll()
 		else
 			clearAll()
@@ -566,23 +579,27 @@ local function flingPlayer(target)
 
 	local myHRP = getHRP()
 	if not myHRP then return end
-	local hum    = getHum()
 	local origin = myHRP.CFrame
 
 	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not tHRP then return end
 
-	if hum then hum.PlatformStand = true end
-
-	-- Place ourselves on the target once
+	-- Place ourselves on the target
 	myHRP.CFrame = tHRP.CFrame
+
+	-- Seed a non-zero velocity with a random horizontal component so the
+	-- first ×10000 multiply fires in all directions, not just vertically
+	myHRP.Velocity = Vector3.new(
+		math.random(-5, 5),
+		1,
+		math.random(-5, 5)
+	)
 
 	local running = true
 	local movel   = 0.1
 
 	task.spawn(function()
 		while running do
-			-- Heartbeat: re-overlap target, then amplify our velocity × 10 000
 			runService.Heartbeat:Wait()
 			local hrp = getHRP()
 			if not hrp then break end
@@ -590,16 +607,14 @@ local function flingPlayer(target)
 				and target.Character:FindFirstChild('HumanoidRootPart')
 			if not curTHRP then break end
 
-			hrp.CFrame = curTHRP.CFrame          -- stay fused every step
+			hrp.CFrame = curTHRP.CFrame
 			local vel  = hrp.Velocity
 			hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
 
-			-- RenderStepped: restore our velocity so we stay in place
 			runService.RenderStepped:Wait()
 			hrp = getHRP()
 			if hrp then hrp.Velocity = vel end
 
-			-- Stepped: oscillating nudge seeds velocity for the next multiply
 			runService.Stepped:Wait()
 			hrp = getHRP()
 			if hrp then hrp.Velocity = vel + Vector3.new(0, movel, 0) end
@@ -609,7 +624,6 @@ local function flingPlayer(target)
 
 	task.delay(2, function()
 		running = false
-		if hum then hum.PlatformStand = false end
 		task.wait(0.05)
 		local hrp2 = getHRP()
 		if hrp2 then hrp2.CFrame = origin end
@@ -1868,45 +1882,31 @@ end
 
 do
 -- ── Combat — Auto Fling Murderer ──────────────────────────────────────────────
--- Toggled: whenever the murderer enters the radius, flings them automatically.
-local autoFlingRadius   = 25
+-- Toggled: flings the murderer continuously whenever a round is active.
 local autoFlingCooldown = false
 local autoFlingConn
 
 local autoFlingMurdererModule = Combat:CreateModule({
 	Name = 'Auto Fling Murderer',
-	Tooltip  = 'Continuously flings the murderer whenever they are within range',
+	Tooltip  = 'Continuously flings the murderer whenever a round is in progress',
 	Bind = {},
 	Function = function(enabled)
 		if enabled then
 			autoFlingConn = runService.Heartbeat:Connect(function()
 				if not roundActive then return end
 				if autoFlingCooldown then return end
-				local myHRP = getHRP()
-				if not myHRP then return end
 				local murderer = findByRole('Murderer')
 				if not murderer or not murderer.Character then return end
-				local mHRP = murderer.Character:FindFirstChild('HumanoidRootPart')
-				if not mHRP then return end
-				if (myHRP.Position - mHRP.Position).Magnitude > autoFlingRadius then return end
+				if not murderer.Character:FindFirstChild('HumanoidRootPart') then return end
 				autoFlingCooldown = true
 				task.spawn(flingPlayer, murderer)
-				task.delay(1.8, function() autoFlingCooldown = false end)
+				task.delay(2.5, function() autoFlingCooldown = false end)
 			end)
 		else
 			if autoFlingConn then autoFlingConn:Disconnect(); autoFlingConn = nil end
 			autoFlingCooldown = false
 		end
 	end,
-})
-
-autoFlingMurdererModule:CreateSlider({
-	Name    = 'Fling Radius (studs)',
-	Tooltip  = 'Begin flinging the murderer when within this range',
-	Min     = 5,
-	Max     = 60,
-	Default = 25,
-	Function = function(val) autoFlingRadius = val end,
 })
 
 end
@@ -3101,6 +3101,7 @@ end
 local function startAutoDodgeLoop()
 	autoDodgeLastMPos = nil
 	autoDodgeHBConn = runService.Heartbeat:Connect(function()
+		if not roundActive then return end
 		local myHRP = getHRP()
 		if not myHRP then return end
 
@@ -3140,6 +3141,7 @@ local function startKnifeDodgeSignal()
 	autoDodgeTagConn =
 		collectionService:GetInstanceAddedSignal('ThrowingKnife'):Connect(function(obj)
 			task.defer(function()
+				if not roundActive then return end
 				local myHRP = getHRP()
 				if not myHRP then return end
 				local pos = obj:IsA('BasePart') and obj.Position
@@ -3159,6 +3161,7 @@ end
 local function startGunFiredSignal()
 	if not GunFired then return end
 	autoDodgeGunConn = GunFired.OnClientEvent:Connect(function()
+		if not roundActive then return end
 		-- Ignore if we fired it ourselves
 		if getEquippedGun() then return end
 		-- Only dodge if a sheriff role exists (the threat is real)
