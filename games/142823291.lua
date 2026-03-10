@@ -570,35 +570,30 @@ local autoGun = Combat:CreateModule({
 local _ = autoGun
 
 -- ── Combat — fling ────────────────────────────────────────────────────────────
--- Exact reference-script loop: while active, stick to the target every frame
--- then blast our own Velocity × 10000 so the server-side collision sends them
--- flying.  Toggle OFF to stop.
-local flingActive = false
+-- One-shot touch-fling: runs the reference velocity loop for FLING_CYCLES
+-- frames, then snaps the module back off so it can be used again immediately.
+local FLING_CYCLES = 10
 
-local function runFlingLoop(getTarget)
+local function doFling(target)
+	if not target or not target.Character or target == lplr then return end
 	local movel = 0.1
 
-	while flingActive do
+	for _ = 1, FLING_CYCLES do
 		runService.Heartbeat:Wait()
 
 		local char = lplr.Character
 		local hrp  = char and char:FindFirstChild('HumanoidRootPart')
 		local hum  = char and char:FindFirstChildOfClass('Humanoid')
-		if not hrp or not hum then continue end
+		local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+		if not hrp or not hum or not tHRP then break end
 
-		local target = getTarget()
-		local tChar  = target and target.Character
-		local tHRP   = tChar and tChar:FindFirstChild('HumanoidRootPart')
-		if not tHRP then continue end
-
-		-- Prevent self-death: PlatformStand disables fall-damage state machine
+		-- Prevent self-death
 		hum.PlatformStand = true
-		-- Restore health each frame as a safeguard
 		if hum.Health < hum.MaxHealth then
 			hum.Health = hum.MaxHealth
 		end
 
-		-- Stay glued to target
+		-- Stick to target
 		hrp.CFrame = tHRP.CFrame
 
 		-- Reference velocity blast
@@ -611,7 +606,7 @@ local function runFlingLoop(getTarget)
 		movel = -movel
 	end
 
-	-- Restore normal humanoid state when toggled off
+	-- Restore humanoid
 	local char = lplr.Character
 	if char then
 		local hum = char:FindFirstChildOfClass('Humanoid')
@@ -621,86 +616,59 @@ local function runFlingLoop(getTarget)
 	end
 end
 
--- flingOnce: a few loop cycles used by kill aura / auto-fling modules
-local function flingOnce(target)
-	if not target or not target.Character or target == lplr then return end
-	local movel = 0.1
-	for _ = 1, 3 do
-		runService.Heartbeat:Wait()
-		local hrp   = getHRP()
-		local tChar = target.Character
-		local tHRP  = tChar and tChar:FindFirstChild('HumanoidRootPart')
-		if not hrp or not tHRP then break end
-		hrp.CFrame = tHRP.CFrame
-		local vel = hrp.Velocity
-		hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
-		runService.RenderStepped:Wait()
-		hrp.Velocity = vel
-		runService.Stepped:Wait()
-		hrp.Velocity = vel + Vector3.new(0, movel, 0)
-		movel = -movel
-	end
-end
+-- flingOnce alias used by kill aura / auto-fling (same thing, different name)
+local flingOnce = doFling
 
-local flingMurderer = Combat:CreateModule({
+local flingMurderer
+flingMurderer = Combat:CreateModule({
 	Name = 'Fling Murderer',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
-		flingActive = enabled
-		if enabled then
-			local target = findByRole('Murderer')
-			if target then
-				task.spawn(runFlingLoop, function()
-					return findByRole('Murderer')
-				end)
-			else
-				vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
-				flingActive = false
-				flingMurderer:Toggle()
-			end
+		if not enabled then return end
+		local target = findByRole('Murderer')
+		if target then
+			task.spawn(doFling, target)
+		else
+			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
 		end
+		oneShot(flingMurderer)
 	end,
 })
 
-local flingSheriff = Combat:CreateModule({
+local flingSheriff
+flingSheriff = Combat:CreateModule({
 	Name = 'Fling Sheriff',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
-		flingActive = enabled
-		if enabled then
-			local target = findByRole('Sheriff')
-			if target then
-				task.spawn(runFlingLoop, function()
-					return findByRole('Sheriff')
-				end)
-			else
-				vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
-				flingActive = false
-				flingSheriff:Toggle()
-			end
+		if not enabled then return end
+		local target = findByRole('Sheriff')
+		if target then
+			task.spawn(doFling, target)
+		else
+			vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
 		end
+		oneShot(flingSheriff)
 	end,
 })
 
 local flingPlayerTarget = ''
 local flingPlayerDropdown
-local flingPlayerModule = Combat:CreateModule({
+local flingPlayerModule
+flingPlayerModule = Combat:CreateModule({
 	Name = 'Fling Player',
+	Notification = false,
 	Bind = {},
 	Function = function(enabled)
-		flingActive = enabled
-		if enabled then
-			local target = flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
-			if target then
-				task.spawn(runFlingLoop, function()
-					return flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
-				end)
-			else
-				vain:CreateNotification('Vain', 'Select a player first', 3, 'alert')
-				flingActive = false
-				flingPlayerModule:Toggle()
-			end
+		if not enabled then return end
+		local target = flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
+		if target then
+			task.spawn(doFling, target)
+		else
+			vain:CreateNotification('Vain', 'Select a player first', 3, 'alert')
 		end
+		oneShot(flingPlayerModule)
 	end,
 })
 
