@@ -772,24 +772,44 @@ local function fireAt(targetHRP)
 	return true
 end
 
--- One-shot: aim + shoot murderer once
+-- One-shot: teleport behind the murderer, shoot, return home
 local shootMurderer
 shootMurderer = Combat:CreateModule({
 	Name = 'Shoot Murderer',
-	Tooltip  = 'One-shot: fires your gun directly at the murderer',
+	Tooltip  = 'Teleports behind the murderer, shoots them, then returns to your position',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
 		local target = findByRole('Murderer')
-		if target and target.Character then
-			local hrp = target.Character:FindFirstChild('HumanoidRootPart')
-			if hrp then
-				fireAt(hrp)
-			end
-		else
+		if not target or not target.Character then
 			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
+			oneShot(shootMurderer)
+			return
 		end
+		local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
+		if not tHRP then oneShot(shootMurderer) return end
+		local myHRP = getHRP()
+		if not myHRP then oneShot(shootMurderer) return end
+
+		task.spawn(function()
+			local origin = myHRP.CFrame
+
+			-- Step behind the murderer (opposite their look direction, 6 studs back)
+			local behind = tHRP.CFrame * CFrame.new(0, 0, 6)
+			myHRP.CFrame = behind
+
+			-- Face and shoot
+			fireAt(tHRP)
+
+			-- Small pause so the shot registers before we vanish
+			task.wait(0.15)
+
+			-- Return home
+			local hrp2 = getHRP()
+			if hrp2 then hrp2.CFrame = origin end
+		end)
+
 		oneShot(shootMurderer)
 	end,
 })
