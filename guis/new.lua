@@ -2,9 +2,9 @@ local mainapi = {
 	Categories = {},
 	Indicators = {},
 	GUIColor = {
-		Hue = 0.61,
-		Sat = 0.90,
-		Value = 0.95
+		Hue = 0.46,
+		Sat = 0.96,
+		Value = 0.52
 	},
 	HeldKeybinds = {},
 	Keybind = {'RightShift'},
@@ -2501,17 +2501,21 @@ function mainapi:CreateGUI()
 	addBlur(window)
 	addCorner(window)
 	makeDraggable(window)
-	local logo = Instance.new('TextLabel')
-	logo.Name = 'VainLogo'
-	logo.Size = UDim2.fromOffset(90, 20)
-	logo.Position = UDim2.fromOffset(8, 9)
+	local logo = Instance.new('ImageLabel')
+	logo.Name = 'VapeLogo'
+	logo.Size = UDim2.fromOffset(62, 18)
+	logo.Position = UDim2.fromOffset(11, 10)
 	logo.BackgroundTransparency = 1
-	logo.Text = 'VAIN V5'
-	logo.TextColor3 = select(3, uipallet.Main:ToHSV()) > 0.5 and uipallet.Text or Color3.new(1, 1, 1)
-	logo.TextXAlignment = Enum.TextXAlignment.Left
-	logo.TextSize = 14
-	logo.FontFace = uipallet.FontSemiBold
+	logo.Image = getcustomasset('vain/assets/guivape.png')
+	logo.ImageColor3 = select(3, uipallet.Main:ToHSV()) > 0.5 and uipallet.Text or Color3.new(1, 1, 1)
 	logo.Parent = window
+	local logov4 = Instance.new('ImageLabel')
+	logov4.Name = 'V4Logo'
+	logov4.Size = UDim2.fromOffset(28, 16)
+	logov4.Position = UDim2.new(1, 1, 0, 1)
+	logov4.BackgroundTransparency = 1
+	logov4.Image = getcustomasset('vain/assets/guiv4.png')
+	logov4.Parent = logo
 	local children = Instance.new('Frame')
 	children.Name = 'Children'
 	children.Size = UDim2.new(1, 0, 1, -33)
@@ -7290,44 +7294,42 @@ textguicolorcustom = textgui:CreateColorSlider({
 ]]
 
 local VapeLabels = {}
-local VapeLogo = Instance.new('TextLabel')
+local VapeLogo = Instance.new('ImageLabel')
 VapeLogo.Name = 'Logo'
-VapeLogo.Size = UDim2.fromOffset(90, 22)
-VapeLogo.Position = UDim2.new(1, -142, 0, 2)
+VapeLogo.Size = UDim2.fromOffset(80, 21)
+VapeLogo.Position = UDim2.new(1, -142, 0, 3)
 VapeLogo.BackgroundTransparency = 1
 VapeLogo.BorderSizePixel = 0
 VapeLogo.Visible = false
-VapeLogo.Text = 'VAIN V5'
-VapeLogo.TextColor3 = Color3.new(1, 1, 1)
-VapeLogo.TextSize = 15
-VapeLogo.FontFace = uipallet.FontSemiBold
-VapeLogo.TextXAlignment = Enum.TextXAlignment.Left
+VapeLogo.BackgroundColor3 = Color3.new()
+VapeLogo.Image = getcustomasset('vain/assets/textvape.png')
 VapeLogo.Parent = textgui.Children
-local VapeLogoShadow = Instance.new('TextLabel')
-VapeLogoShadow.Size = VapeLogo.Size
-VapeLogoShadow.Position = UDim2.fromOffset(VapeLogo.Position.X.Offset + 1, VapeLogo.Position.Y.Offset + 1)
-VapeLogoShadow.BackgroundTransparency = 1
+
+local VapeLogoV4 = Instance.new('ImageLabel')
+VapeLogoV4.Name = 'Logo2'
+VapeLogoV4.Size = UDim2.fromOffset(33, 18)
+VapeLogoV4.Position = UDim2.new(1, 1, 0, 1)
+VapeLogoV4.BackgroundColor3 = Color3.new()
+VapeLogoV4.BackgroundTransparency = 1
+VapeLogoV4.BorderSizePixel = 0
+VapeLogoV4.Image = getcustomasset('vain/assets/textv4.png')
+VapeLogoV4.Parent = VapeLogo
+local VapeLogoShadow = VapeLogo:Clone()
+VapeLogoShadow.Position = UDim2.fromOffset(1, 1)
 VapeLogoShadow.ZIndex = 0
-VapeLogoShadow.Visible = false
-VapeLogoShadow.Text = 'VAIN V5'
-VapeLogoShadow.TextColor3 = Color3.new()
-VapeLogoShadow.TextTransparency = 0.65
-VapeLogoShadow.TextSize = 15
-VapeLogoShadow.FontFace = uipallet.FontSemiBold
-VapeLogoShadow.TextXAlignment = Enum.TextXAlignment.Left
-VapeLogoShadow.Parent = textgui.Children
--- Stub gradient objects so UpdateGUI can set .Color on them;
--- we wire the first keypoint colour through to the logo text.
-local VapeLogoGradient = setmetatable({Color = ColorSequence.new(Color3.new(1,1,1))}, {
-	__newindex = function(t, k, v)
-		rawset(t, k, v)
-		if k == 'Color' then
-			VapeLogo.TextColor3 = v.Keypoints[1].Value
-			VapeLogoShadow.Visible = VapeLogo.Visible
-		end
-	end
-})
-local VapeLogoGradient2 = {Color = ColorSequence.new(Color3.new(1,1,1))}
+VapeLogoShadow.Visible = true
+VapeLogoShadow.ImageColor3 = Color3.new()
+VapeLogoShadow.ImageTransparency = 0.65
+VapeLogoShadow.Parent = VapeLogo
+VapeLogoShadow.Logo2.ZIndex = 0
+VapeLogoShadow.Logo2.ImageColor3 = Color3.new()
+VapeLogoShadow.Logo2.ImageTransparency = 0.65
+local VapeLogoGradient = Instance.new('UIGradient')
+VapeLogoGradient.Rotation = 90
+VapeLogoGradient.Parent = VapeLogo
+local VapeLogoGradient2 = Instance.new('UIGradient')
+VapeLogoGradient2.Rotation = 90
+VapeLogoGradient2.Parent = VapeLogoV4
 
 local lastside = textgui.Children.AbsolutePosition.X > (gui.AbsoluteSize.X / 2)
 mainapi:Clean(textgui.Children:GetPropertyChangedSignal('AbsolutePosition'):Connect(function()
