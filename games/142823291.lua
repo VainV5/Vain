@@ -160,11 +160,12 @@ if GameplayRemotes then
 	end
 end
 
--- Poll GetData2 every 2 s as a fallback (catches any missed PlayerDataChanged)
+-- Poll GetData2 every 2 s as a fallback (always runs; catches late-joins and
+-- mid-round enables even when no PlayerDataChanged fires)
 task.spawn(function()
 	while true do
 		task.wait(2)
-		if espEnabled and ExtrasRemotes then
+		if ExtrasRemotes then
 			local getdata = ExtrasRemotes:FindFirstChild('GetData2')
 			if getdata then
 				local ok, data = pcall(getdata.InvokeServer, getdata)
@@ -206,6 +207,14 @@ local esp = Render:CreateModule({
 	Function = function(enabled)
 		espEnabled = enabled
 		if enabled then
+			-- Immediately fetch roles so late-join / mid-round enable works
+			if ExtrasRemotes then
+				local getdata = ExtrasRemotes:FindFirstChild('GetData2')
+				if getdata then
+					local ok, data = pcall(getdata.InvokeServer, getdata)
+					if ok then applyPlayerData(data) end
+				end
+			end
 			refreshAll()
 		else
 			clearAll()
@@ -541,52 +550,45 @@ local Debris = cloneref(game:GetService('Debris'))
 
 local function flingPlayer(target)
 	if not target or not target.Character then return end
-	if target == lplr then return end  -- never fling ourselves
+	if target == lplr then return end
 	local targetHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not targetHRP then return end
 
 	local myHRP  = getHRP()
-	local origin = myHRP and myHRP.CFrame
+	if not myHRP then return end
+	local myChar = lplr.Character
+	local hum    = myChar and myChar:FindFirstChildOfClass('Humanoid')
+	local origin = myHRP.CFrame
 
-	local angle  = math.random() * math.pi * 2
-	local launch = Vector3.new(math.cos(angle), 0, math.sin(angle)) * 500
-	              + Vector3.new(0, 650, 0)
+	-- Take physics control of our character
+	if hum then hum.PlatformStand = true end
 
-	-- Expand simulation radius so the target's character enters our physics
-	-- ownership bubble — required for velocity writes to replicate in most
-	-- executor environments.
-	pcall(setsimulationradius, 1e6)
+	-- Spin our HRP at extreme angular velocity
+	local bav = Instance.new('BodyAngularVelocity')
+	bav.MaxTorque      = Vector3.new(1e9, 1e9, 1e9)
+	bav.AngularVelocity = Vector3.new(
+		math.random(-1, 1) * 5000, 9000, math.random(-1, 1) * 5000)
+	bav.Parent = myHRP
 
-	-- Teleport next to target so they are inside the expanded sim radius
-	if myHRP then
-		myHRP.CFrame = CFrame.new(targetHRP.Position + Vector3.new(0, 2, 0))
+	-- Continuously teleport into the target for 0.6 s.
+	-- Our spinning body overlaps theirs every frame; player collision
+	-- transfers the rotational momentum and launches them.
+	local t0 = tick()
+	while tick() - t0 < 0.6 do
+		local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+		if not tHRP then break end
+		local hrp = getHRP()
+		if hrp then hrp.CFrame = tHRP.CFrame end
+		task.wait()
 	end
+
+	bav:Destroy()
+	if hum then hum.PlatformStand = false end
+
+	-- Return home
 	task.wait(0.05)
-
-	-- Path 1: Assembly velocity (modern API, bypasses physics ownership)
-	pcall(function()
-		targetHRP.AssemblyLinearVelocity  = launch
-		targetHRP.AssemblyAngularVelocity = Vector3.new(
-			math.random(-100, 100), math.random(-100, 100), math.random(-100, 100))
-	end)
-
-	-- Path 2: BodyVelocity legacy instance
-	pcall(function()
-		local bv = Instance.new('BodyVelocity')
-		bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-		bv.Velocity  = launch
-		bv.P         = 1e9
-		bv.Parent    = targetHRP
-		Debris:AddItem(bv, 0.2)
-	end)
-
-	-- Return to original position and reset sim radius
-	task.wait(0.1)
-	pcall(setsimulationradius, 0)
-	if origin then
-		local hrp2 = getHRP()
-		if hrp2 then hrp2.CFrame = origin end
-	end
+	local hrp2 = getHRP()
+	if hrp2 then hrp2.CFrame = origin end
 end
 
 local flingMurderer
@@ -1169,7 +1171,7 @@ local antiKnife = Combat:CreateModule({
 					local wallHit  = workspace:Raycast(myPos + Vector3.new(0,1,0), dir * (antiKnifeRadius + 8), charFilter)
 					local stepDist = wallHit and wallHit.Distance * 0.6 or antiKnifeRadius + 8
 					local candidate = myPos + dir * stepDist
-					local groundHit = workspace:Raycast(candidate + Vector3.new(0,8,0), Vector3.new(0,-60,0), charFilter)
+					local groundHit = workspace:Raycast(Vector3.new(candidate.X, myPos.Y + 5, candidate.Z), Vector3.new(0,-20,0), charFilter)
 					if groundHit then
 						myHRP.CFrame = CFrame.new(groundHit.Position + Vector3.new(0, 3, 0))
 					end
@@ -2951,10 +2953,12 @@ local function findSafeDodge(myPos, direction, distance)
 	local actualDist = wallHit and (wallHit.Distance * 0.6) or distance
 	local candidate  = myPos + direction * actualDist
 
-	-- Downward ground check (cast from 8 studs above candidate, 60 studs down)
+	-- Downward ground check — cast from the player's *current* Y so we only
+	-- accept spots at roughly the same floor elevation (±20 studs).
+	-- This prevents landing on a lower sub-floor or in the void.
 	local groundHit = workspace:Raycast(
-		candidate + Vector3.new(0, 8, 0),
-		Vector3.new(0, -60, 0),
+		Vector3.new(candidate.X, myPos.Y + 5, candidate.Z),
+		Vector3.new(0, -20, 0),
 		charFilter)
 
 	if not groundHit then
