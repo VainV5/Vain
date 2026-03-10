@@ -432,15 +432,20 @@ end
 local function findDroppedGun()
 	local living = livingChars()
 
-	-- Primary: search inside every non-character Model in workspace.
-	-- The dead sheriff's ragdoll is a Model (named after the player) whose
-	-- direct children include a Part named "Gun".
+	-- Helper: scan a container's descendants for a gun part
+	local function scanContainer(obj)
+		for _, part in obj:GetDescendants() do
+			if isGunPart(part) then return part end
+		end
+	end
+
+	-- Primary: search workspace children
 	for _, child in workspace:GetChildren() do
 		if living[child] then continue end
-		if child:IsA('Model') then
-			for _, part in child:GetChildren() do
-				if isGunPart(part) then return part end
-			end
+		-- Tool in workspace (dropped gun), Model (ragdoll), or nested structure
+		if child:IsA('Model') or child:IsA('Tool') then
+			local found = scanContainer(child)
+			if found then return found end
 		elseif isGunPart(child) then
 			return child
 		end
@@ -449,9 +454,8 @@ local function findDroppedGun()
 	-- Fallback: workspace.Items (lobby display stand)
 	local items = workspace:FindFirstChild('Items')
 	if items then
-		for _, child in items:GetChildren() do
-			if isGunPart(child) then return child end
-		end
+		local found = scanContainer(items)
+		if found then return found end
 	end
 end
 
@@ -505,25 +509,25 @@ local autoGun = Combat:CreateModule({
 			-- When a new Model is added to workspace (e.g. a ragdoll), watch its
 			-- children for the gun part appearing, and also check immediately.
 			local function watchModel(model)
-				-- Check existing children right away (model may already be populated)
+				-- Check existing descendants right away (model may already be populated)
 				task.defer(function()
-					for _, part in model:GetChildren() do
+					for _, part in model:GetDescendants() do
 						if isGunPart(part) then
 							task.spawn(grabGun, part)
 							return
 						end
 					end
 				end)
-				-- Watch for children added shortly after the model arrives
-				local c = model.ChildAdded:Connect(function(part)
+				-- Watch for descendants added shortly after the model arrives
+				local c = model.DescendantAdded:Connect(function(part)
 					if isGunPart(part) then task.spawn(grabGun, part) end
 				end)
 				table.insert(autoGunConns, c)
 			end
 
-			-- Watch workspace for new Models (ragdolls)
+			-- Watch workspace for new Models (ragdolls) or dropped Tools
 			local c1 = workspace.ChildAdded:Connect(function(child)
-				if child:IsA('Model') and not livingChars()[child] then
+				if (child:IsA('Model') or child:IsA('Tool')) and not livingChars()[child] then
 					watchModel(child)
 				elseif isGunPart(child) then
 					task.spawn(grabGun, child)
@@ -549,59 +553,46 @@ local _ = autoGun
 local Debris = cloneref(game:GetService('Debris'))
 
 local function flingPlayer(target)
-	if not target or not target.Character then return end
-	if target == lplr then return end
-	local targetHRP = target.Character:FindFirstChild('HumanoidRootPart')
-	if not targetHRP then return end
+	if not target or not target.Character or target == lplr then return end
 
-	local myHRP  = getHRP()
+	local myHRP = getHRP()
 	if not myHRP then return end
 	local myChar = lplr.Character
 	local hum    = myChar and myChar:FindFirstChildOfClass('Humanoid')
 	local origin = myHRP.CFrame
 
-	-- Expand simulation radius so the client claims network ownership of
-	-- nearby physics objects (including the target's HRP), letting us write
-	-- AssemblyLinearVelocity directly to it and have it replicate.
-	if setsimulationradius then
-		pcall(setsimulationradius, math.huge)
-	end
-
+	-- Claim network ownership of everything nearby so direct velocity writes
+	-- to the target's HRP replicate to the server.
+	if setsimulationradius then pcall(setsimulationradius, math.huge) end
 	if hum then hum.PlatformStand = true end
 
-	-- Teleport into the target
-	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
-	if not tHRP then
-		if hum then hum.PlatformStand = false end
-		return
+	-- Slam into the target every frame for 1.5 s.
+	-- Each iteration: set a random high velocity on BOTH our HRP and the
+	-- target's HRP, then hard-TP into them so the server sees us overlapping
+	-- at that velocity — physics penetration resolution launches the target.
+	local t0 = tick()
+	while tick() - t0 < 1.5 do
+		local tHRP = target.Character and target.Character:FindFirstChild('HumanoidRootPart')
+		if not tHRP then break end
+		local hrp = getHRP()
+		if not hrp then break end
+
+		local vel = Vector3.new(
+			math.random(-900, 900),
+			math.random(400, 1400),
+			math.random(-900, 900)
+		)
+		-- Set velocity first so it is live at the moment of overlap
+		hrp.AssemblyLinearVelocity = vel
+		pcall(function() tHRP.AssemblyLinearVelocity = vel end)
+		-- TP directly on top of the target
+		hrp.CFrame = tHRP.CFrame
+		task.wait()
 	end
-	myHRP.CFrame = tHRP.CFrame
-
-	-- Build the fling vector: strong upward + random horizontal
-	local flingVec = Vector3.new(
-		math.random(-400, 400),
-		900,
-		math.random(-400, 400)
-	)
-
-	-- Write velocity to ourselves (we always own our own HRP — replicates)
-	myHRP.AssemblyLinearVelocity = flingVec
-
-	-- Write velocity directly to target (works once setsimulationradius fired)
-	pcall(function()
-		tHRP.AssemblyLinearVelocity = flingVec
-	end)
-
-	task.wait(0.25)
 
 	if hum then hum.PlatformStand = false end
+	if setsimulationradius then pcall(setsimulationradius, 1000) end
 
-	-- Restore default simulation radius
-	if setsimulationradius then
-		pcall(setsimulationradius, 1000)
-	end
-
-	-- Return home
 	task.wait(0.05)
 	local hrp2 = getHRP()
 	if hrp2 then hrp2.CFrame = origin end
