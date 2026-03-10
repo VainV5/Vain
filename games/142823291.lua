@@ -547,9 +547,10 @@ local autoGun = Combat:CreateModule({
 local _ = autoGun
 
 -- ── Combat — fling ────────────────────────────────────────────────────────────
--- Touch-fling technique: reads the HRP's live Velocity each step and multiplies
--- it by 10 000, compounding momentum every physics step.  WeldConstraint ties
--- the target's HRP to ours so every impulse we receive transfers to them too.
+-- Exact touch-fling logic from the reference script, applied to our own HRP
+-- while we stay overlapping the target.  We own our own HRP so velocity writes
+-- replicate; the server collision resolver then applies the impulse to the
+-- target.  No weld, no tHRP writes — those fight the collision resolution.
 local function flingPlayer(target)
 	if not target or not target.Character or target == lplr then return end
 
@@ -561,57 +562,44 @@ local function flingPlayer(target)
 	local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
 	if not tHRP then return end
 
-	if setsimulationradius then pcall(setsimulationradius, math.huge) end
 	if hum then hum.PlatformStand = true end
 
-	-- Fuse to target
+	-- Place ourselves on the target once
 	myHRP.CFrame = tHRP.CFrame
-	local weld = Instance.new('WeldConstraint')
-	weld.Part0 = myHRP
-	weld.Part1 = tHRP
-	weld.Parent = myHRP
-
-	-- Seed a tiny velocity so the first multiply isn't × 0
-	myHRP.Velocity = Vector3.new(1, 1, 1)
 
 	local running = true
 	local movel   = 0.1
 
 	task.spawn(function()
 		while running do
-			-- Heartbeat: amplify current velocity × 10 000
+			-- Heartbeat: re-overlap target, then amplify our velocity × 10 000
 			runService.Heartbeat:Wait()
 			local hrp = getHRP()
-			if not hrp or not tHRP.Parent then break end
+			if not hrp then break end
+			local curTHRP = target.Character
+				and target.Character:FindFirstChild('HumanoidRootPart')
+			if not curTHRP then break end
 
-			local vel = hrp.Velocity
+			hrp.CFrame = curTHRP.CFrame          -- stay fused every step
+			local vel  = hrp.Velocity
 			hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
-			pcall(function()
-				tHRP.Velocity = tHRP.Velocity * 10000 + Vector3.new(0, 10000, 0)
-			end)
 
-			-- RenderStepped: restore so we don't leave the map ourselves
+			-- RenderStepped: restore our velocity so we stay in place
 			runService.RenderStepped:Wait()
 			hrp = getHRP()
 			if hrp then hrp.Velocity = vel end
-			pcall(function() tHRP.Velocity = vel end)
 
-			-- Stepped: small oscillating nudge keeps momentum building
+			-- Stepped: oscillating nudge seeds velocity for the next multiply
 			runService.Stepped:Wait()
 			hrp = getHRP()
 			if hrp then hrp.Velocity = vel + Vector3.new(0, movel, 0) end
-			pcall(function()
-				tHRP.Velocity = vel + Vector3.new(0, movel, 0)
-			end)
 			movel = -movel
 		end
 	end)
 
 	task.delay(2, function()
 		running = false
-		pcall(weld.Destroy, weld)
 		if hum then hum.PlatformStand = false end
-		if setsimulationradius then pcall(setsimulationradius, 1000) end
 		task.wait(0.05)
 		local hrp2 = getHRP()
 		if hrp2 then hrp2.CFrame = origin end
