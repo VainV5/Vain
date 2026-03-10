@@ -144,18 +144,28 @@ local function applyPlayerData(data)
 end
 
 -- PlayerDataChanged fires with the full PlayerData table whenever roles update
+-- Tracks whether a round is currently in progress
+local roundActive = false
+
 if GameplayRemotes then
 	local pdc = GameplayRemotes:FindFirstChild('PlayerDataChanged')
 	if pdc then
 		vain:Clean(pdc.OnClientEvent:Connect(applyPlayerData))
 	end
 
-	-- Reset roles at round start so dead / spectating players go grey
 	local rs = GameplayRemotes:FindFirstChild('RoundStart')
 	if rs then
 		vain:Clean(rs.OnClientEvent:Connect(function()
+			roundActive = true
 			table.clear(playerRoles)
 			if espEnabled then refreshAll() end
+		end))
+	end
+
+	local go = GameplayRemotes:FindFirstChild('GameOver')
+	if go then
+		vain:Clean(go.OnClientEvent:Connect(function()
+			roundActive = false
 		end))
 	end
 end
@@ -1850,6 +1860,7 @@ local autoFlingMurdererModule = Combat:CreateModule({
 	Function = function(enabled)
 		if enabled then
 			autoFlingConn = runService.Heartbeat:Connect(function()
+				if not roundActive then return end
 				if autoFlingCooldown then return end
 				local myHRP = getHRP()
 				if not myHRP then return end
