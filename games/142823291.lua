@@ -326,32 +326,153 @@ tpSheriff = Combat:CreateModule({
 })
 
 local tpPlayerTarget = ''
+
+local function getPlayerNames()
+	local names = {}
+	for _, p in playersService:GetPlayers() do
+		if p ~= lplr then
+			table.insert(names, p.Name)
+		end
+	end
+	return names
+end
+
 local tpPlayer
+local tpPlayerDropdown
 tpPlayer = Combat:CreateModule({
 	Name = 'Teleport to Player',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
 		if not enabled then return end
-		local name   = tpPlayerTarget ~= '' and tpPlayerTarget or nil
-		local target = name and playersService:FindFirstChild(name)
+		local target = tpPlayerTarget ~= '' and playersService:FindFirstChild(tpPlayerTarget)
 		if target then
 			tpToPlayer(target)
 		else
-			vain:CreateNotification('Vain', 'Player "' .. (name or '?') .. '" not found', 3, 'alert')
+			vain:CreateNotification('Vain', 'Select a player first', 3, 'alert')
 		end
 		oneShot(tpPlayer)
 	end,
 })
 
-tpPlayer:CreateTextBox({
-	Name        = 'Username',
-	Default     = '',
-	Placeholder = 'Enter player name...',
-	Function    = function(val)
-		tpPlayerTarget = val
+tpPlayerDropdown = tpPlayer:CreateDropdown({
+	Name     = 'Player',
+	List     = getPlayerNames(),
+	Function = function(val)
+		tpPlayerTarget = val or ''
 	end,
 })
+
+-- Keep the dropdown list in sync as players join / leave
+vain:Clean(playersService.PlayerAdded:Connect(function()
+	tpPlayerDropdown:Change(getPlayerNames())
+end))
+vain:Clean(playersService.PlayerRemoving:Connect(function(p)
+	if tpPlayerTarget == p.Name then
+		tpPlayerTarget = ''
+	end
+	tpPlayerDropdown:Change(getPlayerNames())
+end))
+
+-- ── Combat — gun teleports ────────────────────────────────────────────────────
+-- MM2 drops the gun into workspace.Items (a Model named "Gun")
+-- Fall back to scanning workspace root for any gun-like object.
+local GUN_NAMES = {'Revolver', 'Sheriff', 'SheriffRevolver', 'Gun', 'SheriffGun'}
+
+local function isGunObject(child)
+	local lname = child.Name:lower()
+	for _, g in GUN_NAMES do
+		if lname == g:lower() then return true end
+	end
+	if child:IsA('Tool') or child:IsA('Model') then
+		if lname:find('revolver') or lname:find('sheriff') then return true end
+	end
+	return false
+end
+
+local function findDroppedGun()
+	-- Primary: workspace.Items folder (confirmed MM2 location)
+	local items = workspace:FindFirstChild('Items')
+	if items then
+		for _, child in items:GetChildren() do
+			if isGunObject(child) then return child end
+		end
+	end
+	-- Fallback: workspace root
+	for _, child in workspace:GetChildren() do
+		if isGunObject(child) then return child end
+	end
+end
+
+local function gunPosition(gun)
+	if gun:IsA('BasePart') then
+		return gun.Position
+	end
+	local part = gun.PrimaryPart or gun:FindFirstChildWhichIsA('BasePart')
+	if part then return part.Position end
+	return gun:GetPivot().Position
+end
+
+-- Teleport to gun and snap back to origin after a short delay (for pickup)
+local function grabGun(gun)
+	local hrp = getHRP()
+	if not hrp then return end
+	local origin = hrp.CFrame           -- remember where we were
+	tpTo(gunPosition(gun))              -- jump to gun
+	task.wait(0.6)                      -- stay long enough to trigger pickup proximity
+	local stillHrp = getHRP()          -- re-check after wait (respawn guard)
+	if stillHrp then
+		stillHrp.CFrame = origin        -- snap back
+	end
+end
+
+local tpGun
+tpGun = Combat:CreateModule({
+	Name = 'Teleport to Gun',
+	Notification = false,
+	Bind = {},
+	Function = function(enabled)
+		if not enabled then return end
+		local gun = findDroppedGun()
+		if gun then
+			task.spawn(grabGun, gun)
+		else
+			vain:CreateNotification('Vain', 'Gun not found — has the sheriff died?', 3, 'alert')
+		end
+		oneShot(tpGun)
+	end,
+})
+
+local autoGunConn
+local autoGunItemsConn
+local autoGun = Combat:CreateModule({
+	Name = 'Auto Teleport to Gun',
+	Bind = {},
+	Function = function(enabled)
+		if enabled then
+			local function onChildAdded(child)
+				if not isGunObject(child) then return end
+				task.spawn(grabGun, child)
+			end
+			autoGunConn = workspace.ChildAdded:Connect(onChildAdded)
+			-- Also watch workspace.Items if it exists
+			local items = workspace:FindFirstChild('Items')
+			if items then
+				autoGunItemsConn = items.ChildAdded:Connect(onChildAdded)
+			end
+		else
+			if autoGunConn then
+				autoGunConn:Disconnect()
+				autoGunConn = nil
+			end
+			if autoGunItemsConn then
+				autoGunItemsConn:Disconnect()
+				autoGunItemsConn = nil
+			end
+		end
+	end,
+})
+local _ = autoGun -- suppress unused warning
 
 -- ── Utility — click teleport ──────────────────────────────────────────────────
 local Utility      = vain.Categories.Utility
