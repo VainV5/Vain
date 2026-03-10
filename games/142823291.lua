@@ -474,6 +474,95 @@ local autoGun = Combat:CreateModule({
 })
 local _ = autoGun -- suppress unused warning
 
+-- ── Combat — fling ────────────────────────────────────────────────────────────
+local debrisService = cloneref(game:GetService('Debris'))
+
+local function flingPlayer(target)
+	if not target or not target.Character then return end
+	local hrp = target.Character:FindFirstChild('HumanoidRootPart')
+	if not hrp then return end
+	local bv = Instance.new('BodyVelocity')
+	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+	bv.Velocity = Vector3.new(
+		math.random(-1, 1) * 5000,
+		8000,
+		math.random(-1, 1) * 5000
+	)
+	bv.Parent = hrp
+	debrisService:AddItem(bv, 0.15)
+end
+
+local flingMurderer
+flingMurderer = Combat:CreateModule({
+	Name = 'Fling Murderer',
+	Notification = false,
+	Bind = {},
+	Function = function(enabled)
+		if not enabled then return end
+		local target = findByRole('Murderer')
+		if target then
+			flingPlayer(target)
+		else
+			vain:CreateNotification('Vain', 'Murderer not found', 3, 'alert')
+		end
+		oneShot(flingMurderer)
+	end,
+})
+
+local flingSheriff
+flingSheriff = Combat:CreateModule({
+	Name = 'Fling Sheriff',
+	Notification = false,
+	Bind = {},
+	Function = function(enabled)
+		if not enabled then return end
+		local target = findByRole('Sheriff')
+		if target then
+			flingPlayer(target)
+		else
+			vain:CreateNotification('Vain', 'Sheriff not found', 3, 'alert')
+		end
+		oneShot(flingSheriff)
+	end,
+})
+
+local flingPlayerTarget = ''
+local flingPlayerModule
+local flingPlayerDropdown
+flingPlayerModule = Combat:CreateModule({
+	Name = 'Fling Player',
+	Notification = false,
+	Bind = {},
+	Function = function(enabled)
+		if not enabled then return end
+		local target = flingPlayerTarget ~= '' and playersService:FindFirstChild(flingPlayerTarget)
+		if target then
+			flingPlayer(target)
+		else
+			vain:CreateNotification('Vain', 'Select a player first', 3, 'alert')
+		end
+		oneShot(flingPlayerModule)
+	end,
+})
+
+flingPlayerDropdown = flingPlayerModule:CreateDropdown({
+	Name     = 'Player',
+	List     = getPlayerNames(),
+	Function = function(val)
+		flingPlayerTarget = val or ''
+	end,
+})
+
+vain:Clean(playersService.PlayerAdded:Connect(function()
+	flingPlayerDropdown:Change(getPlayerNames())
+end))
+vain:Clean(playersService.PlayerRemoving:Connect(function(p)
+	if flingPlayerTarget == p.Name then
+		flingPlayerTarget = ''
+	end
+	flingPlayerDropdown:Change(getPlayerNames())
+end))
+
 -- ── Utility — click teleport ──────────────────────────────────────────────────
 local Utility      = vain.Categories.Utility
 local requireCtrl  = true
