@@ -491,13 +491,14 @@ local function gunPosition(gun)
 	return gun:GetPivot().Position
 end
 
--- Teleport to gun and snap back to origin after a short delay (for pickup)
+-- Teleport directly onto the gun (no upward offset — need contact to pick up)
+-- then snap back after a short wait.
 local function grabGun(gun)
 	local hrp = getHRP()
 	if not hrp then return end
 	local origin = hrp.CFrame
-	tpTo(gunPosition(gun))
-	task.wait(0.6)
+	hrp.CFrame = CFrame.new(gunPosition(gun))
+	task.wait(0.8)
 	local stillHrp = getHRP()
 	if stillHrp then
 		stillHrp.CFrame = origin
@@ -803,11 +804,10 @@ local function fireAt(targetHRP)
 	return true
 end
 
--- One-shot: teleport behind the murderer, shoot, return home
+-- One-shot: aim at murderer and shoot without moving
 local shootMurderer
 shootMurderer = Combat:CreateModule({
 	Name = 'Shoot Murderer',
-	Tooltip  = 'Teleports behind the murderer, shoots them, then returns to your position',
 	Notification = false,
 	Bind = {},
 	Function = function(enabled)
@@ -819,28 +819,11 @@ shootMurderer = Combat:CreateModule({
 			return
 		end
 		local tHRP = target.Character:FindFirstChild('HumanoidRootPart')
-		if not tHRP then oneShot(shootMurderer) return end
-		local myHRP = getHRP()
-		if not myHRP then oneShot(shootMurderer) return end
-
-		task.spawn(function()
-			local origin = myHRP.CFrame
-
-			-- Step behind the murderer (opposite their look direction, 6 studs back)
-			local behind = tHRP.CFrame * CFrame.new(0, 0, 6)
-			myHRP.CFrame = behind
-
-			-- Face and shoot
-			fireAt(tHRP)
-
-			-- Small pause so the shot registers before we vanish
-			task.wait(0.15)
-
-			-- Return home
-			local hrp2 = getHRP()
-			if hrp2 then hrp2.CFrame = origin end
-		end)
-
+		if not tHRP then
+			oneShot(shootMurderer)
+			return
+		end
+		fireAt(tHRP)
 		oneShot(shootMurderer)
 	end,
 })
@@ -1899,29 +1882,28 @@ end
 
 do
 -- ── Combat — Auto Fling Murderer ──────────────────────────────────────────────
--- Toggled: flings the murderer continuously whenever a round is active.
-local autoFlingCooldown = false
-local autoFlingConn
+-- Toggled: waits for a murderer to appear then runs the touch-fling loop.
 
 local autoFlingMurdererModule = Combat:CreateModule({
 	Name = 'Auto Fling Murderer',
 	Tooltip  = 'Continuously flings the murderer whenever a round is in progress',
 	Bind = {},
 	Function = function(enabled)
+		flingActive = enabled
 		if enabled then
-			autoFlingConn = runService.Heartbeat:Connect(function()
-				if not roundActive then return end
-				if autoFlingCooldown then return end
-				local murderer = findByRole('Murderer')
-				if not murderer or not murderer.Character then return end
-				if not murderer.Character:FindFirstChild('HumanoidRootPart') then return end
-				autoFlingCooldown = true
-				task.spawn(flingOnce, murderer)
-				task.delay(2.5, function() autoFlingCooldown = false end)
+			task.spawn(function()
+				-- Wait until a murderer is present before starting the loop
+				while flingActive do
+					local murderer = findByRole('Murderer')
+					local mHRP = murderer and murderer.Character
+						and murderer.Character:FindFirstChild('HumanoidRootPart')
+					if mHRP then
+						runFlingLoop(function() return findByRole('Murderer') end)
+						break
+					end
+					task.wait(0.5)
+				end
 			end)
-		else
-			if autoFlingConn then autoFlingConn:Disconnect(); autoFlingConn = nil end
-			autoFlingCooldown = false
 		end
 	end,
 })

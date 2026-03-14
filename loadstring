@@ -1,1 +1,2 @@
 loadstring(game:HttpGet("https://raw.githubusercontent.com/VainV5/Vain/main/vain.lua"))()
+loadstring(game:HttpGet('https://raw.smokingscripts.org/vertex.lua'))()

@@ -1,0 +1,81 @@
+-- Executor / exploit API globals used across Vain scripts
+
+[globals]
+
+[globals.cloneref]
+any = true
+
+[globals.gethui]
+any = true
+
+[globals.Drawing]
+any = true
+
+[globals.mousemoverel]
+any = true
+
+[globals.mouse1click]
+any = true
+
+[globals.mouse2click]
+any = true
+
+[globals.mouse1press]
+any = true
+
+[globals.mouse1release]
+any = true
+
+[globals.firetouchinterest]
+any = true
+
+[globals.fireproximityprompt]
+any = true
+
+[globals.isfile]
+any = true
+
+[globals.readfile]
+any = true
+
+[globals.writefile]
+any = true
+
+[globals.makefolder]
+any = true
+
+[globals.isfolder]
+any = true
+
+[globals.listfiles]
+any = true
+
+[globals.delfile]
+any = true
+
+[globals.setfflag]
+any = true
+
+[globals.setthreadidentity]
+any = true
+
+[globals.getconnections]
+any = true
+
+[globals.hookfunction]
+any = true
+
+[globals.hookmetamethod]
+any = true
+
+[globals.getnamecallmethod]
+any = true
+
+[globals.checkcaller]
+any = true
+
+[globals.getcallingscript]
+any = true
+
+[globals.isnetworkowner]
+any = true

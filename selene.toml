@@ -1,1 +1,4 @@
-std = "roblox"
+std = "roblox+./vain_globals"
+
+[lints]
+multiple_statements = "allow"
